@@ -1,4 +1,4 @@
-const APP_VERSION = "OneDrive 送出版 v7";
+const APP_VERSION = "OneDrive 送出版 v8";
 const PAGE_LOAD_TIME = new Date();
 
 const POWER_AUTOMATE_CONFIG = {
@@ -106,7 +106,8 @@ function setStatus(message, type = "") {
 function readRecordsFromKey(key) {
   try {
     const records = JSON.parse(localStorage.getItem(key) || "[]");
-    return Array.isArray(records) ? records : [];
+    if (Array.isArray(records)) return records;
+    return records?.id ? [records] : [];
   } catch {
     return [];
   }
@@ -186,6 +187,7 @@ function switchView(viewId) {
 function updateLocationOtherVisibility() {
   const isOther = form.elements.locationPreset.value === "其它";
   otherLocationField.classList.toggle("hidden-field", !isOther);
+  otherLocationField.hidden = !isOther;
   form.elements.locationOther.required = isOther;
   if (!isOther) form.elements.locationOther.value = "";
 }
@@ -286,6 +288,7 @@ async function submitToPowerAutomate(remotePayload) {
 }
 
 function toLocalRecord(remotePayload) {
+  const photoNames = remotePayload.photos.map((photo) => `${remotePayload.id}-${photo.name}`);
   return {
     id: remotePayload.id,
     title: `${remotePayload.record.inspectionDate} ${remotePayload.record.location} ${remotePayload.record.inspectorName}`,
@@ -296,9 +299,10 @@ function toLocalRecord(remotePayload) {
     hasAbnormal: remotePayload.record.hasAbnormal,
     abnormalDescription: remotePayload.record.abnormalDescription,
     checks: remotePayload.record.checks,
-    photos: remotePayload.photos.map((photo) => ({
+    photos: remotePayload.photos.map((photo, index) => ({
       name: photo.name,
-      url: `OneDrive/巡檢網頁/photos/${remotePayload.id}-${photo.name}`,
+      storedName: photoNames[index],
+      url: "",
       previewUrl: "",
     })),
     created: remotePayload.submittedAt,
@@ -428,9 +432,10 @@ function renderDetail(record) {
     <h3 class="detail-title">照片</h3>
     <div class="photos">
       ${photos.length ? photos.map((photo) => `
-        <a href="${escapeHtml(photo.url)}" target="_blank" rel="noreferrer">
-          <span>${escapeHtml(photo.name || "巡檢照片")}</span>
-        </a>
+        <div class="photo-file">
+          <strong>${escapeHtml(photo.name || "巡檢照片")}</strong>
+          <span>已存至 OneDrive / 巡檢網頁 / photos / ${escapeHtml(photo.storedName || photo.name || "")}</span>
+        </div>
       `).join("") : "<p>沒有照片。</p>"}
     </div>
   `;
@@ -468,6 +473,7 @@ resultBody.addEventListener("click", (event) => {
 
 renderFields(checkFields);
 form.elements.inspectionDate.value = today();
+otherLocationField.hidden = true;
 updateLocationOtherVisibility();
 recordsCache = getStoredRecords();
 connectionText.textContent = `Power Automate 模式：送出資料將由流程存入 OneDrive｜${APP_VERSION}｜頁面載入 ${formatDateTime(PAGE_LOAD_TIME)}`;

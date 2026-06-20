@@ -156,7 +156,11 @@ main {
 }
 
 .hidden-field {
-  display: none;
+  display: none !important;
+}
+
+[hidden] {
+  display: none !important;
 }
 
 .query-grid {
@@ -408,18 +412,30 @@ dialog::backdrop {
   background: rgba(15, 23, 42, 0.45);
 }
 
-.success-dialog {
-  width: min(420px, calc(100vw - 28px));
-  padding: 28px;
+.success-dialog,
+.success-dialog[open] {
+  width: min(360px, calc(100vw - 32px));
+  max-height: none;
+  padding: 0;
   text-align: center;
+  overflow: visible;
+  background: transparent;
+  box-shadow: none;
 }
 
-.success-dialog h2 {
+.success-card {
+  padding: 26px 24px 22px;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 20px 70px rgba(16, 24, 40, 0.28);
+}
+
+.success-card h2 {
   margin-top: 12px;
-  font-size: 24px;
+  font-size: 22px;
 }
 
-.success-dialog p {
+.success-card p {
   margin: 10px 0 22px;
   color: var(--muted);
   line-height: 1.6;
@@ -515,6 +531,22 @@ dialog::backdrop {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 10px;
+}
+
+.photo-file {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: #fff;
+}
+
+.photo-file span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+  word-break: break-all;
 }
 
 .photos a {

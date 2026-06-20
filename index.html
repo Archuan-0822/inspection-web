@@ -57,7 +57,7 @@
                   <option value="其它">其它</option>
                 </select>
               </label>
-              <label id="otherLocationField" class="hidden-field">
+              <label id="otherLocationField" class="hidden-field" hidden>
                 <span>其它巡檢地點</span>
                 <input name="locationOther" autocomplete="off">
               </label>
@@ -174,13 +174,15 @@
       <div id="detailContent" class="detail-content"></div>
     </dialog>
 
-    <dialog id="successDialog" class="success-dialog">
-      <div class="success-mark" aria-hidden="true">✓</div>
-      <h2>已完成填報</h2>
-      <p>巡檢紀錄已送出並存入 OneDrive。</p>
-      <button class="primary" id="closeSuccessDialog" type="button">確定</button>
+    <dialog id="successDialog" class="success-dialog" aria-labelledby="successTitle">
+      <div class="success-card">
+        <div class="success-mark" aria-hidden="true">✓</div>
+        <h2 id="successTitle">已完成填報</h2>
+        <p>巡檢紀錄已送出並存入 OneDrive。</p>
+        <button class="primary" id="closeSuccessDialog" type="button">確定</button>
+      </div>
     </dialog>
 
-    <script src="app.js?v=20260621-onedrive-7" type="module"></script>
+    <script src="app.js?v=20260621-onedrive-8" type="module"></script>
   </body>
 </html>
