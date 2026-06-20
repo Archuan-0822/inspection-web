@@ -45,7 +45,7 @@
               </label>
               <label>
                 <span>巡檢日期</span>
-                <input name="inspectionDate" type="date" required>
+                <input name="inspectionDate" type="text" inputmode="numeric" placeholder="YYYY/MM/DD" required>
               </label>
               <label>
                 <span>巡檢地點</span>
@@ -107,15 +107,21 @@
           <form id="queryForm" class="query-grid">
             <label>
               <span>起始日期</span>
-              <input name="dateFrom" type="date">
+              <input name="dateFrom" type="text" inputmode="numeric" placeholder="YYYY/MM/DD">
             </label>
             <label>
               <span>結束日期</span>
-              <input name="dateTo" type="date">
+              <input name="dateTo" type="text" inputmode="numeric" placeholder="YYYY/MM/DD">
             </label>
             <label>
               <span>巡檢地點</span>
-              <input name="location">
+              <select name="location">
+                <option value="">全部</option>
+                <option value="華航園區">華航園區</option>
+                <option value="1航廈">1航廈</option>
+                <option value="2航廈">2航廈</option>
+                <option value="其它">其它</option>
+              </select>
             </label>
             <label>
               <span>姓名</span>
@@ -150,7 +156,7 @@
           <div class="section-title">
             <h2>查詢結果</h2>
             <div class="toolbar">
-              <button class="secondary" id="exportRecords" type="button">匯出目前紀錄</button>
+              <button class="secondary" id="exportRecords" type="button">匯出 Excel</button>
               <span id="resultCount" class="hint">尚未查詢</span>
             </div>
           </div>
@@ -191,6 +197,6 @@
       </div>
     </dialog>
 
-    <script src="app.js?v=20260621-onedrive-10" type="module"></script>
+    <script src="app.js?v=20260621-onedrive-11" type="module"></script>
   </body>
 </html>

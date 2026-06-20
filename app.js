@@ -1,4 +1,4 @@
-const APP_VERSION = "OneDrive 送出版 v10";
+const APP_VERSION = "OneDrive 送出版 v11";
 const PAGE_LOAD_TIME = new Date();
 
 const POWER_AUTOMATE_CONFIG = {
@@ -45,6 +45,7 @@ const checkFields = [
 }));
 
 const CHECK_OPTIONS = ["正常", "異常", "不適用"];
+const FIXED_LOCATIONS = ["華航園區", "1航廈", "2航廈"];
 const STORAGE_KEYS = [
   "department-inspection-records-v3",
   "department-inspection-records-v2",
@@ -69,7 +70,14 @@ const successDialog = document.querySelector("#successDialog");
 let recordsCache = [];
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  return formatInputDate(new Date());
+}
+
+function formatInputDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}/${month}/${day}`;
 }
 
 function formatDateTime(date) {
@@ -93,9 +101,21 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-function normalizeDate(value) {
+function toCanonicalDate(value) {
   if (!value) return "";
-  return String(value).slice(0, 10);
+  const match = String(value).trim().match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (!match) return "";
+  const [, year, month, day] = match;
+  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+}
+
+function normalizeDate(value) {
+  const canonical = toCanonicalDate(value);
+  return canonical ? canonical.replaceAll("-", "/") : "";
+}
+
+function assertDateValue(value, label) {
+  if (!toCanonicalDate(value)) throw new Error(`${label}請使用 YYYY/MM/DD 格式。`);
 }
 
 function setStatus(message, type = "") {
@@ -229,6 +249,7 @@ function getFormPayload() {
   const photos = Array.from(form.elements.photos.files || []);
 
   if (!location) throw new Error("請選擇或填寫巡檢地點。");
+  assertDateValue(data.get("inspectionDate"), "巡檢日期");
   if (hasAbnormal && !abnormalDescription) {
     throw new Error("有異常項目時，請填寫異常情況描述或辦理情形。");
   }
@@ -239,7 +260,7 @@ function getFormPayload() {
   return {
     inspectorName: String(data.get("inspectorName") || "").trim(),
     employeeId: String(data.get("employeeId") || "").trim(),
-    inspectionDate: String(data.get("inspectionDate") || ""),
+    inspectionDate: normalizeDate(data.get("inspectionDate")),
     location,
     abnormalDescription,
     hasAbnormal,
@@ -349,13 +370,30 @@ async function handleSubmit(event) {
 }
 
 function exportRecords() {
-  const data = JSON.stringify(recordsCache, null, 2);
-  const blob = new Blob([data], { type: "application/json;charset=utf-8" });
+  const records = filterRecords(recordsCache);
+  const headers = ["巡檢日期", "巡檢地點", "姓名", "員工編號", "異常狀態", "異常說明", "照片數", "照片檔名", "送出時間", "檢查項目"];
+  const rows = records.map((record) => [
+    normalizeDate(record.inspectionDate),
+    record.location || "",
+    record.inspectorName || "",
+    record.employeeId || "",
+    record.hasAbnormal ? "有異常" : "正常",
+    record.abnormalDescription || "",
+    String((record.photos || []).length),
+    (record.photos || []).map((photo) => photo.storedName || photo.name).join("、"),
+    record.created ? formatDateTime(new Date(record.created)) : "",
+    (record.checks || []).map((item) => `${item.category} - ${item.label}: ${item.value}`).join("\n"),
+  ]);
+  const tableRows = [headers, ...rows].map((row) => (
+    `<tr>${row.map((cell) => `<td>${escapeHtml(cell).replaceAll("\n", "<br>")}</td>`).join("")}</tr>`
+  )).join("");
+  const html = `<!doctype html><html><head><meta charset="utf-8"></head><body><table>${tableRows}</table></body></html>`;
+  const blob = new Blob(["\ufeff", html], { type: "application/vnd.ms-excel;charset=utf-8" });
   const url = URL.createObjectURL(blob);
-  const date = today().replaceAll("-", "");
+  const date = today().replaceAll("/", "");
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = `巡檢紀錄-${date}.json`;
+  anchor.download = `巡檢紀錄-${date}.xls`;
   document.body.append(anchor);
   anchor.click();
   anchor.remove();
@@ -364,18 +402,19 @@ function exportRecords() {
 
 function filterRecords(records) {
   const data = new FormData(queryForm);
-  const dateFrom = String(data.get("dateFrom") || "");
-  const dateTo = String(data.get("dateTo") || "");
-  const location = String(data.get("location") || "").trim().toLowerCase();
+  const dateFrom = toCanonicalDate(data.get("dateFrom"));
+  const dateTo = toCanonicalDate(data.get("dateTo"));
+  const location = String(data.get("location") || "").trim();
   const inspectorName = String(data.get("inspectorName") || "").trim().toLowerCase();
   const employeeId = String(data.get("employeeId") || "").trim().toLowerCase();
   const abnormal = String(data.get("abnormal") || "");
 
   return records.filter((record) => {
-    const date = normalizeDate(record.inspectionDate);
+    const date = toCanonicalDate(record.inspectionDate);
     if (dateFrom && date < dateFrom) return false;
     if (dateTo && date > dateTo) return false;
-    if (location && !String(record.location || "").toLowerCase().includes(location)) return false;
+    if (location === "其它" && FIXED_LOCATIONS.includes(String(record.location || ""))) return false;
+    if (location && location !== "其它" && record.location !== location) return false;
     if (inspectorName && !String(record.inspectorName || "").toLowerCase().includes(inspectorName)) return false;
     if (employeeId && !String(record.employeeId || "").toLowerCase().includes(employeeId)) return false;
     if (abnormal === "yes" && !record.hasAbnormal) return false;
