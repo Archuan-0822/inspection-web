@@ -1,4 +1,4 @@
-const APP_VERSION = "OneDrive 送出版 v9";
+const APP_VERSION = "OneDrive 送出版 v10";
 const PAGE_LOAD_TIME = new Date();
 
 const POWER_AUTOMATE_CONFIG = {
@@ -129,7 +129,7 @@ function normalizeStoredRecord(record) {
       name: photo.name || photo.storedName || "巡檢照片",
       storedName: photo.storedName || photo.name || "",
       url: "",
-      previewUrl: "",
+      previewUrl: String(photo.previewUrl || "").startsWith("data:image/") ? photo.previewUrl : "",
     })),
   };
 }
@@ -316,7 +316,7 @@ function toLocalRecord(remotePayload) {
       name: photo.name,
       storedName: photoNames[index],
       url: "",
-      previewUrl: "",
+      previewUrl: photo.type.startsWith("image/") ? `data:${photo.type};base64,${photo.contentBase64}` : "",
     })),
     created: remotePayload.submittedAt,
   };
@@ -384,16 +384,19 @@ function filterRecords(records) {
   });
 }
 
-function renderResults(records) {
+function renderResults(records, options = {}) {
   const filtered = filterRecords(records);
-  resultCount.textContent = `共 ${filtered.length} 筆`;
+  const visible = options.latestOnly ? filtered.slice(0, 1) : filtered;
+  resultCount.textContent = options.latestOnly && filtered.length > 1
+    ? `顯示最新 1 筆，共 ${filtered.length} 筆`
+    : `共 ${filtered.length} 筆`;
 
   if (filtered.length === 0) {
     resultBody.innerHTML = `<tr><td colspan="7">沒有符合條件的巡檢紀錄。</td></tr>`;
     return;
   }
 
-  resultBody.innerHTML = filtered.map((record) => {
+  resultBody.innerHTML = visible.map((record) => {
     const photos = record.photos || [];
     return `
       <tr>
@@ -415,7 +418,28 @@ function loadAndRenderRecords(showLoading = true) {
     resultBody.innerHTML = `<tr><td colspan="7">正在讀取本瀏覽器送出的巡檢紀錄。</td></tr>`;
   }
   recordsCache = getStoredRecords();
-  renderResults(recordsCache);
+  renderResults(recordsCache, { latestOnly: true });
+}
+
+function renderPhoto(photo) {
+  const name = escapeHtml(photo.name || "巡檢照片");
+  const storedName = escapeHtml(photo.storedName || photo.name || "");
+  if (photo.previewUrl) {
+    return `
+      <a class="photo-preview" href="${escapeHtml(photo.previewUrl)}" target="_blank" rel="noopener">
+        <img src="${escapeHtml(photo.previewUrl)}" alt="${name}">
+        <span>${name}</span>
+      </a>
+    `;
+  }
+
+  return `
+    <div class="photo-file">
+      <strong>${name}</strong>
+      <span>照片已存至 OneDrive / 巡檢網頁 / photos / ${storedName}</span>
+      <small>這筆舊資料沒有保留可直接預覽的照片內容。</small>
+    </div>
+  `;
 }
 
 function renderDetail(record) {
@@ -444,12 +468,7 @@ function renderDetail(record) {
     </div>
     <h3 class="detail-title">照片</h3>
     <div class="photos">
-      ${photos.length ? photos.map((photo) => `
-        <div class="photo-file">
-          <strong>${escapeHtml(photo.name || "巡檢照片")}</strong>
-          <span>已存至 OneDrive / 巡檢網頁 / photos / ${escapeHtml(photo.storedName || photo.name || "")}</span>
-        </div>
-      `).join("") : "<p>沒有照片。</p>"}
+      ${photos.length ? photos.map(renderPhoto).join("") : "<p>沒有照片。</p>"}
     </div>
   `;
 }
@@ -466,7 +485,7 @@ form.elements.locationPreset.addEventListener("change", updateLocationOtherVisib
 exportRecordsButton.addEventListener("click", exportRecords);
 clearQueryButton.addEventListener("click", () => {
   queryForm.reset();
-  renderResults(recordsCache);
+  renderResults(recordsCache, { latestOnly: true });
 });
 
 form.addEventListener("submit", handleSubmit);

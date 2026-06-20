@@ -549,7 +549,14 @@ dialog::backdrop {
   word-break: break-all;
 }
 
-.photos a {
+.photo-file small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.photos a,
+.photo-preview {
   display: grid;
   gap: 8px;
   border: 1px solid var(--line);
@@ -565,7 +572,8 @@ dialog::backdrop {
   padding: 0 10px 10px;
 }
 
-.photos img {
+.photos img,
+.photo-preview img {
   display: block;
   width: 100%;
   aspect-ratio: 4 / 3;
