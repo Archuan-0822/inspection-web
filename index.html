@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>部門安全衛生巡檢</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>部門安全衛生巡檢</h1>
+        <p id="connectionText">正在初始化巡檢系統</p>
+      </div>
+      <nav class="tabs" aria-label="主要功能">
+        <button class="tab active" data-view="formView" type="button">填寫巡檢</button>
+        <button class="tab" data-view="queryView" type="button">查詢紀錄</button>
+      </nav>
+    </header>
+
+    <main>
+      <section id="formView" class="view active" aria-label="填寫巡檢表單">
+        <form id="inspectionForm" class="workspace">
+          <section class="panel">
+            <div class="section-title">
+              <h2>基本資料</h2>
+              <span class="hint">送出後會建立一筆 OneDrive 巡檢紀錄</span>
+            </div>
+            <div class="field-grid">
+              <label>
+                <span>姓名</span>
+                <input name="inspectorName" autocomplete="name" required>
+              </label>
+              <label>
+                <span>員工編號</span>
+                <input name="employeeId" autocomplete="off" required>
+              </label>
+              <label>
+                <span>巡檢日期</span>
+                <input name="inspectionDate" type="date" required>
+              </label>
+              <label>
+                <span>巡檢地點</span>
+                <input name="location" required>
+              </label>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="section-title">
+              <h2>巡檢項目</h2>
+              <div class="toolbar">
+                <button class="secondary" id="markAllNormal" type="button">全部正常</button>
+                <button class="secondary" id="markAllNA" type="button">全部不適用</button>
+              </div>
+            </div>
+            <div id="checkGroups" class="check-groups" aria-live="polite"></div>
+          </section>
+
+          <section class="panel">
+            <div class="section-title">
+              <h2>異常與照片</h2>
+              <span id="abnormalHint" class="hint">若任一項為異常，請填寫說明並至少上傳 1 張照片</span>
+            </div>
+            <label>
+              <span>異常情況描述或其它辦理情形</span>
+              <textarea name="abnormalDescription" rows="4"></textarea>
+            </label>
+            <label class="file-drop">
+              <span>巡檢照片或相關佐證資料</span>
+              <input name="photos" type="file" accept="image/*" multiple>
+              <small>支援多張照片。接上照片流程後會存到 OneDrive 的「巡檢網頁/photos」資料夾。</small>
+            </label>
+          </section>
+
+          <footer class="actionbar">
+            <p id="formStatus" role="status"></p>
+            <button class="primary" type="submit">送出巡檢紀錄</button>
+          </footer>
+        </form>
+      </section>
+
+      <section id="queryView" class="view" aria-label="查詢巡檢紀錄">
+        <section class="panel">
+          <div class="section-title">
+            <h2>查詢條件</h2>
+            <span class="hint">可依日期、地點、人員、員工編號或異常狀態篩選</span>
+          </div>
+          <form id="queryForm" class="query-grid">
+            <label>
+              <span>起始日期</span>
+              <input name="dateFrom" type="date">
+            </label>
+            <label>
+              <span>結束日期</span>
+              <input name="dateTo" type="date">
+            </label>
+            <label>
+              <span>巡檢地點</span>
+              <input name="location">
+            </label>
+            <label>
+              <span>姓名</span>
+              <input name="inspectorName">
+            </label>
+            <label>
+              <span>員工編號</span>
+              <input name="employeeId">
+            </label>
+            <label>
+              <span>異常狀態</span>
+              <select name="abnormal">
+                <option value="">全部</option>
+                <option value="yes">有異常</option>
+                <option value="no">無異常</option>
+              </select>
+            </label>
+            <button class="primary" type="submit">查詢</button>
+          </form>
+        </section>
+
+        <section class="panel results-panel">
+          <div class="section-title">
+            <h2>查詢結果</h2>
+            <div class="toolbar">
+              <button class="secondary" id="exportRecords" type="button">匯出目前紀錄</button>
+              <span id="resultCount" class="hint">尚未查詢</span>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>巡檢日期</th>
+                  <th>地點</th>
+                  <th>姓名</th>
+                  <th>員工編號</th>
+                  <th>異常</th>
+                  <th>照片</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="resultBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <dialog id="detailDialog">
+      <div class="dialog-head">
+        <h2>巡檢明細</h2>
+        <button class="icon-button" id="closeDialog" type="button" aria-label="關閉">×</button>
+      </div>
+      <div id="detailContent" class="detail-content"></div>
+    </dialog>
+
+    <script src="app.js?v=20260620-onedrive-5" type="module"></script>
+  </body>
+</html>
