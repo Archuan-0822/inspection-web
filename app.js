@@ -1,4 +1,4 @@
-const APP_VERSION = "OneDrive 送出版 v8";
+const APP_VERSION = "OneDrive 送出版 v9";
 const PAGE_LOAD_TIME = new Date();
 
 const POWER_AUTOMATE_CONFIG = {
@@ -122,8 +122,21 @@ function dedupeRecords(records) {
   });
 }
 
+function normalizeStoredRecord(record) {
+  return {
+    ...record,
+    photos: (record.photos || []).map((photo) => ({
+      name: photo.name || photo.storedName || "巡檢照片",
+      storedName: photo.storedName || photo.name || "",
+      url: "",
+      previewUrl: "",
+    })),
+  };
+}
+
 function getStoredRecords() {
-  const records = dedupeRecords(STORAGE_KEYS.flatMap((key) => readRecordsFromKey(key)));
+  const records = dedupeRecords(STORAGE_KEYS.flatMap((key) => readRecordsFromKey(key)))
+    .map(normalizeStoredRecord);
   records.sort((a, b) => String(b.created || "").localeCompare(String(a.created || "")));
   localStorage.setItem(PRIMARY_STORAGE_KEY, JSON.stringify(records));
   return records;
