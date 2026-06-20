@@ -1,32 +1,5 @@
-const APP_VERSION = "OneDrive 送出版 2026-06-20 22:25";
-
-const SHAREPOINT_CONFIG = {
-  enabled: false,
-  recordsListTitle: "巡檢紀錄",
-  photosLibraryTitle: "巡檢照片",
-  pageSize: 200,
-  fieldMap: {
-    title: "Title",
-    inspectorName: "InspectorName",
-    employeeId: "EmployeeId",
-    inspectionDate: "InspectionDate",
-    location: "InspectionLocation",
-    hasAbnormal: "HasAbnormal",
-    abnormalDescription: "AbnormalDescription",
-    checkItemsJson: "CheckItemsJson",
-    photoLinksJson: "PhotoLinksJson",
-  },
-};
-
-const ONEDRIVE_CONFIG = {
-  enabled: false,
-  clientId: "",
-  authority: "https://login.microsoftonline.com/common",
-  storageFolder: "巡檢網頁",
-  recordsFileName: "inspection-records.json",
-  photoFolderName: "photos",
-  scopes: ["User.Read", "Files.ReadWrite"],
-};
+const APP_VERSION = "OneDrive 送出版 v6";
+const PAGE_LOAD_TIME = new Date();
 
 const POWER_AUTOMATE_CONFIG = {
   enabled: true,
@@ -73,7 +46,7 @@ const checkFields = [
 }));
 
 const CHECK_OPTIONS = ["正常", "異常", "不適用"];
-const LOCAL_STORAGE_KEY = "department-inspection-records-v1";
+const LOCAL_STORAGE_KEY = "department-inspection-records-v2";
 
 const form = document.querySelector("#inspectionForm");
 const queryForm = document.querySelector("#queryForm");
@@ -87,10 +60,21 @@ const dialog = document.querySelector("#detailDialog");
 const detailContent = document.querySelector("#detailContent");
 
 let recordsCache = [];
-let service;
 
 function today() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function formatDateTime(date) {
+  return new Intl.DateTimeFormat("zh-TW", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date);
 }
 
 function escapeHtml(value) {
@@ -110,6 +94,22 @@ function normalizeDate(value) {
 function setStatus(message, type = "") {
   formStatus.textContent = message;
   formStatus.className = type;
+}
+
+function getStoredRecords() {
+  try {
+    const records = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || "[]");
+    return Array.isArray(records) ? records : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveStoredRecord(record) {
+  const records = getStoredRecords();
+  records.unshift(record);
+  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(records));
+  recordsCache = records;
 }
 
 function groupByCategory(fields) {
@@ -158,9 +158,7 @@ function markAll(value) {
 function switchView(viewId) {
   document.querySelectorAll(".view").forEach((view) => view.classList.toggle("active", view.id === viewId));
   document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === viewId));
-  if (viewId === "queryView") {
-    loadAndRenderRecords();
-  }
+  if (viewId === "queryView") loadAndRenderRecords();
 }
 
 function getCheckResults(data) {
@@ -198,21 +196,94 @@ function getFormPayload() {
   };
 }
 
+async function fileToBase64(file) {
+  const buffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+async function buildRemotePayload(payload) {
+  const id = `pa-${Date.now()}`;
+  const photos = [];
+  for (const file of payload.photos) {
+    photos.push({
+      name: file.name,
+      type: file.type || "application/octet-stream",
+      contentBase64: await fileToBase64(file),
+    });
+  }
+
+  return {
+    id,
+    submittedAt: new Date().toISOString(),
+    record: {
+      inspectorName: payload.inspectorName,
+      employeeId: payload.employeeId,
+      inspectionDate: payload.inspectionDate,
+      location: payload.location,
+      hasAbnormal: payload.hasAbnormal,
+      abnormalDescription: payload.abnormalDescription,
+      checks: payload.checks,
+    },
+    photos,
+  };
+}
+
+async function submitToPowerAutomate(remotePayload) {
+  if (!/[?&](sig|code)=/i.test(POWER_AUTOMATE_CONFIG.submitEndpointUrl)) {
+    throw new Error("Power Automate URL 不完整。請重新複製完整 HTTP POST URL。");
+  }
+
+  const response = await fetch(POWER_AUTOMATE_CONFIG.submitEndpointUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json; charset=utf-8" },
+    body: JSON.stringify(remotePayload),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`送出到 Power Automate 失敗 (${response.status})：${text.slice(0, 220)}`);
+  }
+}
+
+function toLocalRecord(remotePayload) {
+  return {
+    id: remotePayload.id,
+    title: `${remotePayload.record.inspectionDate} ${remotePayload.record.location} ${remotePayload.record.inspectorName}`,
+    inspectorName: remotePayload.record.inspectorName,
+    employeeId: remotePayload.record.employeeId,
+    inspectionDate: remotePayload.record.inspectionDate,
+    location: remotePayload.record.location,
+    hasAbnormal: remotePayload.record.hasAbnormal,
+    abnormalDescription: remotePayload.record.abnormalDescription,
+    checks: remotePayload.record.checks,
+    photos: remotePayload.photos.map((photo) => ({
+      name: photo.name,
+      url: `OneDrive/巡檢網頁/photos/${remotePayload.id}-${photo.name}`,
+      previewUrl: "",
+    })),
+    created: remotePayload.submittedAt,
+  };
+}
+
 async function handleSubmit(event) {
   event.preventDefault();
   setStatus("正在送出巡檢紀錄...", "");
 
   try {
     const payload = getFormPayload();
-    await service.createRecord(payload);
+    const remotePayload = await buildRemotePayload(payload);
+    await submitToPowerAutomate(remotePayload);
+    saveStoredRecord(toLocalRecord(remotePayload));
+
     form.reset();
     renderFields(checkFields);
     form.elements.inspectionDate.value = today();
-    const message = service.mode === "local"
-      ? "巡檢紀錄已暫存在本機瀏覽器。接上 Power Automate 後才會寫入 OneDrive。"
-      : "巡檢紀錄已送出。";
-    setStatus(message, "success");
-    await loadAndRenderRecords(false);
+    setStatus(`巡檢紀錄已送出：${remotePayload.id}`, "success");
+    alert(`巡檢紀錄已成功送出。\n紀錄編號：${remotePayload.id}`);
+    loadAndRenderRecords(false);
   } catch (error) {
     setStatus(error.message || "送出失敗，請稍後再試。", "error");
   }
@@ -279,32 +350,27 @@ function renderResults(records) {
   }).join("");
 }
 
-async function loadAndRenderRecords(showLoading = true) {
+function loadAndRenderRecords(showLoading = true) {
   if (showLoading) {
     resultCount.textContent = "載入中...";
-    resultBody.innerHTML = `<tr><td colspan="7">正在讀取巡檢紀錄。</td></tr>`;
+    resultBody.innerHTML = `<tr><td colspan="7">正在讀取本瀏覽器送出的巡檢紀錄。</td></tr>`;
   }
-
-  try {
-    recordsCache = await service.getRecords();
-    renderResults(recordsCache);
-  } catch (error) {
-    resultCount.textContent = "讀取失敗";
-    resultBody.innerHTML = `<tr><td colspan="7">${escapeHtml(error.message || "無法讀取巡檢資料。")}</td></tr>`;
-  }
+  recordsCache = getStoredRecords();
+  renderResults(recordsCache);
 }
 
 function renderDetail(record) {
   const photos = record.photos || [];
-  const abnormalDescription = record.abnormalDescription || "無";
   detailContent.innerHTML = `
     <div class="detail-grid">
+      <div class="detail-box"><strong>紀錄編號</strong>${escapeHtml(record.id)}</div>
       <div class="detail-box"><strong>巡檢日期</strong>${escapeHtml(normalizeDate(record.inspectionDate))}</div>
       <div class="detail-box"><strong>巡檢地點</strong>${escapeHtml(record.location)}</div>
       <div class="detail-box"><strong>姓名</strong>${escapeHtml(record.inspectorName)}</div>
       <div class="detail-box"><strong>員工編號</strong>${escapeHtml(record.employeeId)}</div>
+      <div class="detail-box"><strong>送出時間</strong>${escapeHtml(formatDateTime(new Date(record.created)))}</div>
     </div>
-    <div class="detail-box wide"><strong>異常情況描述或其它辦理情形</strong>${escapeHtml(abnormalDescription)}</div>
+    <div class="detail-box wide"><strong>異常情況描述或其它辦理情形</strong>${escapeHtml(record.abnormalDescription || "無")}</div>
     <h3 class="detail-title">巡檢項目</h3>
     <div class="detail-list">
       ${(record.checks || []).map((item) => `
@@ -321,464 +387,11 @@ function renderDetail(record) {
     <div class="photos">
       ${photos.length ? photos.map((photo) => `
         <a href="${escapeHtml(photo.url)}" target="_blank" rel="noreferrer">
-          ${photo.previewUrl ? `<img src="${escapeHtml(photo.previewUrl)}" alt="${escapeHtml(photo.name)}">` : ""}
           <span>${escapeHtml(photo.name || "巡檢照片")}</span>
         </a>
       `).join("") : "<p>沒有照片。</p>"}
     </div>
   `;
-}
-
-function getSharePointWebUrl() {
-  if (window._spPageContextInfo?.webAbsoluteUrl) return window._spPageContextInfo.webAbsoluteUrl;
-  const match = window.location.href.match(/^(https:\/\/[^/]+\/sites\/[^/]+)/i);
-  return match ? match[1] : "";
-}
-
-function sanitizeFileName(value) {
-  return String(value || "photo")
-    .replace(/[\\/:*?"<>|#%{}~&]/g, "-")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 90);
-}
-
-function odataText(value) {
-  return String(value).replaceAll("'", "''");
-}
-
-function parseJsonField(value, fallback) {
-  if (!value) return fallback;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return fallback;
-  }
-}
-
-async function fileToBase64(file) {
-  const buffer = await file.arrayBuffer();
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary);
-}
-
-class LocalInspectionService {
-  constructor() {
-    this.mode = "local";
-  }
-
-  async getRecords() {
-    return JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || "[]");
-  }
-
-  async createRecord(payload) {
-    const records = await this.getRecords();
-    const id = `local-${Date.now()}`;
-    const photos = payload.photos.map((file) => ({
-      name: file.name,
-      url: URL.createObjectURL(file),
-      previewUrl: URL.createObjectURL(file),
-    }));
-    records.unshift({
-      id,
-      title: `${payload.inspectionDate} ${payload.location} ${payload.inspectorName}`,
-      inspectorName: payload.inspectorName,
-      employeeId: payload.employeeId,
-      inspectionDate: payload.inspectionDate,
-      location: payload.location,
-      hasAbnormal: payload.hasAbnormal,
-      abnormalDescription: payload.abnormalDescription,
-      checks: payload.checks,
-      photos,
-      created: new Date().toISOString(),
-    });
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(records));
-  }
-}
-
-class PowerAutomateInspectionService {
-  constructor(config) {
-    this.mode = "powerautomate";
-    this.config = config;
-    this.local = new LocalInspectionService();
-  }
-
-  async getRecords() {
-    if (!this.config.queryEndpointUrl) return this.local.getRecords();
-
-    const response = await fetch(this.config.queryEndpointUrl, {
-      method: "GET",
-      cache: "no-store",
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`讀取 Power Automate 紀錄失敗 (${response.status})：${text.slice(0, 220)}`);
-    }
-    const records = await response.json();
-    return Array.isArray(records) ? records : [];
-  }
-
-  async createRecord(payload) {
-    if (!/[?&](sig|code)=/i.test(this.config.submitEndpointUrl)) {
-      throw new Error("Power Automate URL 看起來不完整。請重新複製 manual 觸發器的完整 HTTP POST URL，網址通常會包含 sig= 或 code= 參數。");
-    }
-
-    const id = `pa-${Date.now()}`;
-    const photos = [];
-    for (const file of payload.photos) {
-      photos.push({
-        name: file.name,
-        type: file.type || "application/octet-stream",
-        contentBase64: await fileToBase64(file),
-      });
-    }
-
-    const remotePayload = {
-      id,
-      submittedAt: new Date().toISOString(),
-      record: {
-        inspectorName: payload.inspectorName,
-        employeeId: payload.employeeId,
-        inspectionDate: payload.inspectionDate,
-        location: payload.location,
-        hasAbnormal: payload.hasAbnormal,
-        abnormalDescription: payload.abnormalDescription,
-        checks: payload.checks,
-      },
-      photos,
-    };
-
-    const body = JSON.stringify(remotePayload);
-    const response = await fetch(this.config.submitEndpointUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json; charset=utf-8" },
-      body,
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`送出到 Power Automate 失敗 (${response.status})：${text.slice(0, 220)}`);
-    }
-
-    await this.local.createRecord({
-      ...payload,
-      photos: [],
-    });
-  }
-}
-
-class SharePointInspectionService {
-  constructor(webUrl, config) {
-    this.mode = "sharepoint";
-    this.webUrl = webUrl.replace(/\/$/, "");
-    this.config = config;
-    this.digest = "";
-    this.entityType = "";
-    this.libraryRootUrl = "";
-  }
-
-  async request(path, options = {}) {
-    const response = await fetch(`${this.webUrl}${path}`, {
-      credentials: "same-origin",
-      headers: {
-        Accept: "application/json;odata=verbose",
-        ...(options.body && !(options.body instanceof ArrayBuffer) ? { "Content-Type": "application/json;odata=verbose" } : {}),
-        ...(options.method && options.method !== "GET" ? { "X-RequestDigest": await this.getDigest() } : {}),
-        ...(options.headers || {}),
-      },
-      ...options,
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`SharePoint 回應失敗 (${response.status})：${text.slice(0, 220)}`);
-    }
-
-    if (response.status === 204) return null;
-    return response.json();
-  }
-
-  async getDigest() {
-    if (this.digest) return this.digest;
-    const response = await fetch(`${this.webUrl}/_api/contextinfo`, {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { Accept: "application/json;odata=verbose" },
-    });
-    if (!response.ok) throw new Error("無法取得 SharePoint 寫入權杖。");
-    const json = await response.json();
-    this.digest = json.d.GetContextWebInformation.FormDigestValue;
-    return this.digest;
-  }
-
-  async ensureMetadata() {
-    if (!this.entityType) {
-      const listInfo = await this.request(
-        `/_api/web/lists/getbytitle('${odataText(this.config.recordsListTitle)}')?$select=ListItemEntityTypeFullName`,
-      );
-      this.entityType = listInfo.d.ListItemEntityTypeFullName;
-    }
-    if (!this.libraryRootUrl) {
-      const libraryInfo = await this.request(
-        `/_api/web/lists/getbytitle('${odataText(this.config.photosLibraryTitle)}')/RootFolder?$select=ServerRelativeUrl`,
-      );
-      this.libraryRootUrl = libraryInfo.d.ServerRelativeUrl;
-    }
-  }
-
-  mapItem(item) {
-    const fields = this.config.fieldMap;
-    return {
-      id: String(item.Id),
-      title: item[fields.title],
-      inspectorName: item[fields.inspectorName],
-      employeeId: item[fields.employeeId],
-      inspectionDate: item[fields.inspectionDate],
-      location: item[fields.location],
-      hasAbnormal: Boolean(item[fields.hasAbnormal]),
-      abnormalDescription: item[fields.abnormalDescription],
-      checks: parseJsonField(item[fields.checkItemsJson], []),
-      photos: parseJsonField(item[fields.photoLinksJson], []),
-      created: item.Created,
-      author: item.Author?.Title || "",
-    };
-  }
-
-  async getRecords() {
-    const fields = this.config.fieldMap;
-    const select = [
-      "Id",
-      "Created",
-      "Author/Title",
-      fields.title,
-      fields.inspectorName,
-      fields.employeeId,
-      fields.inspectionDate,
-      fields.location,
-      fields.hasAbnormal,
-      fields.abnormalDescription,
-      fields.checkItemsJson,
-      fields.photoLinksJson,
-    ].join(",");
-    const json = await this.request(
-      `/_api/web/lists/getbytitle('${odataText(this.config.recordsListTitle)}')/items` +
-      `?$select=${select}&$expand=Author&$orderby=${fields.inspectionDate} desc,Id desc&$top=${this.config.pageSize}`,
-    );
-    return json.d.results.map((item) => this.mapItem(item));
-  }
-
-  async createRecord(payload) {
-    await this.ensureMetadata();
-    const fields = this.config.fieldMap;
-    const title = `${payload.inspectionDate} ${payload.location} ${payload.inspectorName}`;
-    const body = {
-      __metadata: { type: this.entityType },
-      [fields.title]: title,
-      [fields.inspectorName]: payload.inspectorName,
-      [fields.employeeId]: payload.employeeId,
-      [fields.inspectionDate]: payload.inspectionDate,
-      [fields.location]: payload.location,
-      [fields.hasAbnormal]: payload.hasAbnormal,
-      [fields.abnormalDescription]: payload.abnormalDescription,
-      [fields.checkItemsJson]: JSON.stringify(payload.checks),
-      [fields.photoLinksJson]: "[]",
-    };
-
-    const created = await this.request(
-      `/_api/web/lists/getbytitle('${odataText(this.config.recordsListTitle)}')/items`,
-      { method: "POST", body: JSON.stringify(body) },
-    );
-
-    const recordId = created.d.Id;
-    const photos = await this.uploadPhotos(recordId, payload.photos);
-    if (photos.length > 0) {
-      await this.request(
-        `/_api/web/lists/getbytitle('${odataText(this.config.recordsListTitle)}')/items(${recordId})`,
-        {
-          method: "POST",
-          headers: {
-            "IF-MATCH": "*",
-            "X-HTTP-Method": "MERGE",
-          },
-          body: JSON.stringify({
-            __metadata: { type: this.entityType },
-            [fields.photoLinksJson]: JSON.stringify(photos),
-          }),
-        },
-      );
-    }
-  }
-
-  async uploadPhotos(recordId, files) {
-    const photos = [];
-    for (const [index, file] of files.entries()) {
-      const extension = file.name.includes(".") ? file.name.slice(file.name.lastIndexOf(".")) : "";
-      const baseName = sanitizeFileName(file.name.replace(extension, ""));
-      const fileName = `${recordId}-${index + 1}-${baseName}${extension}`;
-      const buffer = await file.arrayBuffer();
-      const json = await this.request(
-        `/_api/web/GetFolderByServerRelativeUrl('${odataText(this.libraryRootUrl)}')/Files/add(url='${odataText(fileName)}',overwrite=true)`,
-        {
-          method: "POST",
-          body: buffer,
-          headers: { "Content-Type": "application/octet-stream" },
-        },
-      );
-      photos.push({
-        name: file.name,
-        url: json.d.ServerRelativeUrl,
-        previewUrl: json.d.ServerRelativeUrl,
-      });
-    }
-    return photos;
-  }
-}
-
-class OneDriveInspectionService {
-  constructor(config) {
-    this.mode = "onedrive";
-    this.config = config;
-    this.account = null;
-    this.client = new window.msal.PublicClientApplication({
-      auth: {
-        clientId: config.clientId,
-        authority: config.authority,
-        redirectUri: window.location.origin + window.location.pathname,
-      },
-      cache: {
-        cacheLocation: "localStorage",
-      },
-    });
-  }
-
-  async ensureAccount() {
-    const response = await this.client.handleRedirectPromise();
-    if (response?.account) this.account = response.account;
-
-    const accounts = this.client.getAllAccounts();
-    if (!this.account && accounts.length > 0) this.account = accounts[0];
-
-    if (!this.account) {
-      const login = await this.client.loginPopup({ scopes: this.config.scopes });
-      this.account = login.account;
-    }
-  }
-
-  async getAccessToken() {
-    await this.ensureAccount();
-    try {
-      const response = await this.client.acquireTokenSilent({
-        account: this.account,
-        scopes: this.config.scopes,
-      });
-      return response.accessToken;
-    } catch {
-      const response = await this.client.acquireTokenPopup({
-        account: this.account,
-        scopes: this.config.scopes,
-      });
-      return response.accessToken;
-    }
-  }
-
-  async graph(path, options = {}) {
-    const token = await this.getAccessToken();
-    const response = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
-      ...options,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        ...(options.headers || {}),
-      },
-    });
-
-    if (response.status === 404 && options.allowNotFound) return null;
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`OneDrive 回應失敗 (${response.status})：${text.slice(0, 220)}`);
-    }
-    if (response.status === 204) return null;
-    const contentType = response.headers.get("content-type") || "";
-    return contentType.includes("application/json") ? response.json() : response.text();
-  }
-
-  recordsPath() {
-    return `/me/drive/root:/${encodeURIComponent(this.config.storageFolder)}/${encodeURIComponent(this.config.recordsFileName)}:/content`;
-  }
-
-  photoPath(fileName) {
-    return `/me/drive/root:/${encodeURIComponent(this.config.storageFolder)}/${encodeURIComponent(this.config.photoFolderName)}/${encodeURIComponent(fileName)}:/content`;
-  }
-
-  async getRecords() {
-    const content = await this.graph(this.recordsPath(), { allowNotFound: true });
-    if (!content) return [];
-    const records = typeof content === "string" ? JSON.parse(content) : content;
-    return Array.isArray(records) ? records : [];
-  }
-
-  async saveRecords(records) {
-    await this.graph(this.recordsPath(), {
-      method: "PUT",
-      body: JSON.stringify(records, null, 2),
-      headers: { "Content-Type": "application/json; charset=utf-8" },
-    });
-  }
-
-  async createRecord(payload) {
-    const records = await this.getRecords();
-    const id = `od-${Date.now()}`;
-    const photos = await this.uploadPhotos(id, payload.photos);
-    records.unshift({
-      id,
-      title: `${payload.inspectionDate} ${payload.location} ${payload.inspectorName}`,
-      inspectorName: payload.inspectorName,
-      employeeId: payload.employeeId,
-      inspectionDate: payload.inspectionDate,
-      location: payload.location,
-      hasAbnormal: payload.hasAbnormal,
-      abnormalDescription: payload.abnormalDescription,
-      checks: payload.checks,
-      photos,
-      created: new Date().toISOString(),
-    });
-    await this.saveRecords(records);
-  }
-
-  async uploadPhotos(recordId, files) {
-    const photos = [];
-    for (const [index, file] of files.entries()) {
-      const extension = file.name.includes(".") ? file.name.slice(file.name.lastIndexOf(".")) : "";
-      const baseName = sanitizeFileName(file.name.replace(extension, ""));
-      const fileName = `${recordId}-${index + 1}-${baseName}${extension}`;
-      const item = await this.graph(this.photoPath(fileName), {
-        method: "PUT",
-        body: await file.arrayBuffer(),
-        headers: { "Content-Type": file.type || "application/octet-stream" },
-      });
-      photos.push({
-        name: file.name,
-        url: item.webUrl,
-        previewUrl: item.webUrl,
-      });
-    }
-    return photos;
-  }
-}
-
-function createService() {
-  const webUrl = getSharePointWebUrl();
-  if (POWER_AUTOMATE_CONFIG.enabled && POWER_AUTOMATE_CONFIG.submitEndpointUrl) {
-    return new PowerAutomateInspectionService(POWER_AUTOMATE_CONFIG);
-  }
-  if (ONEDRIVE_CONFIG.enabled && ONEDRIVE_CONFIG.clientId && window.msal) {
-    return new OneDriveInspectionService(ONEDRIVE_CONFIG);
-  }
-  if (SHAREPOINT_CONFIG.enabled && webUrl && window.location.protocol.startsWith("http")) {
-    return new SharePointInspectionService(webUrl, SHAREPOINT_CONFIG);
-  }
-  return new LocalInspectionService();
 }
 
 document.querySelectorAll(".tab").forEach((tab) => {
@@ -807,12 +420,6 @@ resultBody.addEventListener("click", (event) => {
 
 renderFields(checkFields);
 form.elements.inspectionDate.value = today();
-service = createService();
-connectionText.textContent = service.mode === "sharepoint"
-  ? `SharePoint 模式：將寫入「${SHAREPOINT_CONFIG.recordsListTitle}」清單`
-  : service.mode === "powerautomate"
-    ? `Power Automate 模式：送出資料將由流程存入 OneDrive｜${APP_VERSION}`
-  : service.mode === "onedrive"
-    ? `OneDrive 模式：將寫入目前登入帳號的「${ONEDRIVE_CONFIG.storageFolder}」資料夾｜${APP_VERSION}`
-  : `本機預覽模式：資料暫存在這台電腦的瀏覽器中，共 ${checkFields.length} 個巡檢項目｜${APP_VERSION}`;
+recordsCache = getStoredRecords();
+connectionText.textContent = `Power Automate 模式：送出資料將由流程存入 OneDrive｜${APP_VERSION}｜頁面載入 ${formatDateTime(PAGE_LOAD_TIME)}`;
 loadAndRenderRecords(false);
