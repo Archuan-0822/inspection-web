@@ -1,10 +1,9 @@
-const APP_VERSION = "OneDrive 送出版 v6";
+const APP_VERSION = "OneDrive 送出版 v7";
 const PAGE_LOAD_TIME = new Date();
 
 const POWER_AUTOMATE_CONFIG = {
   enabled: true,
   submitEndpointUrl: "https://default8660009a103e42099ff744105f8112.c5.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/07ade87a20454b35af289262c215f185/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=fUNe20p34kXoGyyofm2JGkDdVbjYH_MTLNEHGLSRhwk",
-  queryEndpointUrl: "",
 };
 
 const checkFields = [
@@ -46,7 +45,12 @@ const checkFields = [
 }));
 
 const CHECK_OPTIONS = ["正常", "異常", "不適用"];
-const LOCAL_STORAGE_KEY = "department-inspection-records-v2";
+const STORAGE_KEYS = [
+  "department-inspection-records-v3",
+  "department-inspection-records-v2",
+  "department-inspection-records-v1",
+];
+const PRIMARY_STORAGE_KEY = STORAGE_KEYS[0];
 
 const form = document.querySelector("#inspectionForm");
 const queryForm = document.querySelector("#queryForm");
@@ -56,8 +60,11 @@ const connectionText = document.querySelector("#connectionText");
 const resultBody = document.querySelector("#resultBody");
 const resultCount = document.querySelector("#resultCount");
 const exportRecordsButton = document.querySelector("#exportRecords");
-const dialog = document.querySelector("#detailDialog");
+const clearQueryButton = document.querySelector("#clearQuery");
+const otherLocationField = document.querySelector("#otherLocationField");
+const detailDialog = document.querySelector("#detailDialog");
 const detailContent = document.querySelector("#detailContent");
+const successDialog = document.querySelector("#successDialog");
 
 let recordsCache = [];
 
@@ -96,19 +103,34 @@ function setStatus(message, type = "") {
   formStatus.className = type;
 }
 
-function getStoredRecords() {
+function readRecordsFromKey(key) {
   try {
-    const records = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || "[]");
+    const records = JSON.parse(localStorage.getItem(key) || "[]");
     return Array.isArray(records) ? records : [];
   } catch {
     return [];
   }
 }
 
+function dedupeRecords(records) {
+  const seen = new Set();
+  return records.filter((record) => {
+    if (!record?.id || seen.has(record.id)) return false;
+    seen.add(record.id);
+    return true;
+  });
+}
+
+function getStoredRecords() {
+  const records = dedupeRecords(STORAGE_KEYS.flatMap((key) => readRecordsFromKey(key)));
+  records.sort((a, b) => String(b.created || "").localeCompare(String(a.created || "")));
+  localStorage.setItem(PRIMARY_STORAGE_KEY, JSON.stringify(records));
+  return records;
+}
+
 function saveStoredRecord(record) {
-  const records = getStoredRecords();
-  records.unshift(record);
-  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(records));
+  const records = dedupeRecords([record, ...getStoredRecords()]);
+  localStorage.setItem(PRIMARY_STORAGE_KEY, JSON.stringify(records));
   recordsCache = records;
 }
 
@@ -161,6 +183,19 @@ function switchView(viewId) {
   if (viewId === "queryView") loadAndRenderRecords();
 }
 
+function updateLocationOtherVisibility() {
+  const isOther = form.elements.locationPreset.value === "其它";
+  otherLocationField.classList.toggle("hidden-field", !isOther);
+  form.elements.locationOther.required = isOther;
+  if (!isOther) form.elements.locationOther.value = "";
+}
+
+function getSelectedLocation(data) {
+  const preset = String(data.get("locationPreset") || "").trim();
+  const other = String(data.get("locationOther") || "").trim();
+  return preset === "其它" ? other : preset;
+}
+
 function getCheckResults(data) {
   return checkFields.map((field) => ({
     key: field.key,
@@ -173,10 +208,12 @@ function getCheckResults(data) {
 function getFormPayload() {
   const data = new FormData(form);
   const checks = getCheckResults(data);
+  const location = getSelectedLocation(data);
   const hasAbnormal = checks.some((item) => item.value === "異常");
   const abnormalDescription = String(data.get("abnormalDescription") || "").trim();
   const photos = Array.from(form.elements.photos.files || []);
 
+  if (!location) throw new Error("請選擇或填寫巡檢地點。");
   if (hasAbnormal && !abnormalDescription) {
     throw new Error("有異常項目時，請填寫異常情況描述或辦理情形。");
   }
@@ -188,7 +225,7 @@ function getFormPayload() {
     inspectorName: String(data.get("inspectorName") || "").trim(),
     employeeId: String(data.get("employeeId") || "").trim(),
     inspectionDate: String(data.get("inspectionDate") || ""),
-    location: String(data.get("location") || "").trim(),
+    location,
     abnormalDescription,
     hasAbnormal,
     checks,
@@ -233,7 +270,7 @@ async function buildRemotePayload(payload) {
 
 async function submitToPowerAutomate(remotePayload) {
   if (!/[?&](sig|code)=/i.test(POWER_AUTOMATE_CONFIG.submitEndpointUrl)) {
-    throw new Error("Power Automate URL 不完整。請重新複製完整 HTTP POST URL。");
+    throw new Error("Power Automate URL 不完整，請重新複製完整 HTTP POST URL。");
   }
 
   const response = await fetch(POWER_AUTOMATE_CONFIG.submitEndpointUrl, {
@@ -268,6 +305,10 @@ function toLocalRecord(remotePayload) {
   };
 }
 
+function showSuccessDialog() {
+  successDialog.showModal();
+}
+
 async function handleSubmit(event) {
   event.preventDefault();
   setStatus("正在送出巡檢紀錄...", "");
@@ -281,8 +322,9 @@ async function handleSubmit(event) {
     form.reset();
     renderFields(checkFields);
     form.elements.inspectionDate.value = today();
-    setStatus(`巡檢紀錄已送出：${remotePayload.id}`, "success");
-    alert(`巡檢紀錄已成功送出。\n紀錄編號：${remotePayload.id}`);
+    updateLocationOtherVisibility();
+    setStatus("已完成填報。", "success");
+    showSuccessDialog();
     loadAndRenderRecords(false);
   } catch (error) {
     setStatus(error.message || "送出失敗，請稍後再試。", "error");
@@ -400,8 +442,14 @@ document.querySelectorAll(".tab").forEach((tab) => {
 
 document.querySelector("#markAllNormal").addEventListener("click", () => markAll("正常"));
 document.querySelector("#markAllNA").addEventListener("click", () => markAll("不適用"));
-document.querySelector("#closeDialog").addEventListener("click", () => dialog.close());
+document.querySelector("#closeDialog").addEventListener("click", () => detailDialog.close());
+document.querySelector("#closeSuccessDialog").addEventListener("click", () => successDialog.close());
+form.elements.locationPreset.addEventListener("change", updateLocationOtherVisibility);
 exportRecordsButton.addEventListener("click", exportRecords);
+clearQueryButton.addEventListener("click", () => {
+  queryForm.reset();
+  renderResults(recordsCache);
+});
 
 form.addEventListener("submit", handleSubmit);
 queryForm.addEventListener("submit", (event) => {
@@ -415,11 +463,12 @@ resultBody.addEventListener("click", (event) => {
   const record = recordsCache.find((item) => String(item.id) === button.dataset.detailId);
   if (!record) return;
   renderDetail(record);
-  dialog.showModal();
+  detailDialog.showModal();
 });
 
 renderFields(checkFields);
 form.elements.inspectionDate.value = today();
+updateLocationOtherVisibility();
 recordsCache = getStoredRecords();
 connectionText.textContent = `Power Automate 模式：送出資料將由流程存入 OneDrive｜${APP_VERSION}｜頁面載入 ${formatDateTime(PAGE_LOAD_TIME)}`;
 loadAndRenderRecords(false);

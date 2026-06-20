@@ -29,7 +29,15 @@
             <div class="field-grid">
               <label>
                 <span>姓名</span>
-                <input name="inspectorName" autocomplete="name" required>
+                <select name="inspectorName" required>
+                  <option value="">請選擇</option>
+                  <option value="房家儀">房家儀</option>
+                  <option value="張春輝">張春輝</option>
+                  <option value="詹子穗">詹子穗</option>
+                  <option value="馬智仁">馬智仁</option>
+                  <option value="張煒">張煒</option>
+                  <option value="許澤泉">許澤泉</option>
+                </select>
               </label>
               <label>
                 <span>員工編號</span>
@@ -41,7 +49,17 @@
               </label>
               <label>
                 <span>巡檢地點</span>
-                <input name="location" required>
+                <select name="locationPreset" required>
+                  <option value="">請選擇</option>
+                  <option value="華航園區">華航園區</option>
+                  <option value="1航廈">1航廈</option>
+                  <option value="2航廈">2航廈</option>
+                  <option value="其它">其它</option>
+                </select>
+              </label>
+              <label id="otherLocationField" class="hidden-field">
+                <span>其它巡檢地點</span>
+                <input name="locationOther" autocomplete="off">
               </label>
             </div>
           </section>
@@ -116,6 +134,7 @@
               </select>
             </label>
             <button class="primary" type="submit">查詢</button>
+            <button class="secondary" id="clearQuery" type="button">清除條件</button>
           </form>
         </section>
 
@@ -155,6 +174,13 @@
       <div id="detailContent" class="detail-content"></div>
     </dialog>
 
-    <script src="app.js?v=20260620-onedrive-6" type="module"></script>
+    <dialog id="successDialog" class="success-dialog">
+      <div class="success-mark" aria-hidden="true">✓</div>
+      <h2>已完成填報</h2>
+      <p>巡檢紀錄已送出並存入 OneDrive。</p>
+      <button class="primary" id="closeSuccessDialog" type="button">確定</button>
+    </dialog>
+
+    <script src="app.js?v=20260621-onedrive-7" type="module"></script>
   </body>
 </html>

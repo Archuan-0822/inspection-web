@@ -155,6 +155,10 @@ main {
   gap: 14px;
 }
 
+.hidden-field {
+  display: none;
+}
+
 .query-grid {
   grid-template-columns: repeat(6, minmax(130px, 1fr));
   align-items: end;
@@ -402,6 +406,36 @@ dialog {
 
 dialog::backdrop {
   background: rgba(15, 23, 42, 0.45);
+}
+
+.success-dialog {
+  width: min(420px, calc(100vw - 28px));
+  padding: 28px;
+  text-align: center;
+}
+
+.success-dialog h2 {
+  margin-top: 12px;
+  font-size: 24px;
+}
+
+.success-dialog p {
+  margin: 10px 0 22px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.success-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 999px;
+  background: var(--ok-soft);
+  color: #166534;
+  font-size: 36px;
+  font-weight: 900;
 }
 
 .dialog-head {
