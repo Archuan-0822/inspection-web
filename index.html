@@ -41,11 +41,11 @@
               </label>
               <label>
                 <span>員工編號</span>
-                <input name="employeeId" autocomplete="off" required>
+                <input name="employeeId" autocomplete="off" readonly required>
               </label>
               <label>
                 <span>巡檢日期</span>
-                <input name="inspectionDate" type="text" inputmode="numeric" placeholder="YYYY/MM/DD" required>
+                <input name="inspectionDate" type="date" required>
               </label>
               <label>
                 <span>巡檢地點</span>
@@ -107,11 +107,11 @@
           <form id="queryForm" class="query-grid">
             <label>
               <span>起始日期</span>
-              <input name="dateFrom" type="text" inputmode="numeric" placeholder="YYYY/MM/DD">
+              <input name="dateFrom" type="date">
             </label>
             <label>
               <span>結束日期</span>
-              <input name="dateTo" type="text" inputmode="numeric" placeholder="YYYY/MM/DD">
+              <input name="dateTo" type="date">
             </label>
             <label>
               <span>巡檢地點</span>
@@ -197,6 +197,6 @@
       </div>
     </dialog>
 
-    <script src="app.js?v=20260621-onedrive-11" type="module"></script>
+    <script src="app.js?v=20260621-onedrive-12" type="module"></script>
   </body>
 </html>

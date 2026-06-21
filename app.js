@@ -1,4 +1,4 @@
-const APP_VERSION = "OneDrive 送出版 v11";
+const APP_VERSION = "OneDrive 送出版 v12";
 const PAGE_LOAD_TIME = new Date();
 
 const POWER_AUTOMATE_CONFIG = {
@@ -46,6 +46,14 @@ const checkFields = [
 
 const CHECK_OPTIONS = ["正常", "異常", "不適用"];
 const FIXED_LOCATIONS = ["華航園區", "1航廈", "2航廈"];
+const EMPLOYEE_BY_NAME = {
+  房家儀: "630951",
+  張春輝: "633653",
+  詹子穗: "630628",
+  馬智仁: "635529",
+  張煒: "645788",
+  許澤泉: "646425",
+};
 const STORAGE_KEYS = [
   "department-inspection-records-v3",
   "department-inspection-records-v2",
@@ -77,7 +85,7 @@ function formatInputDate(date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
-  return `${year}/${month}/${day}`;
+  return `${year}-${month}-${day}`;
 }
 
 function formatDateTime(date) {
@@ -115,7 +123,12 @@ function normalizeDate(value) {
 }
 
 function assertDateValue(value, label) {
-  if (!toCanonicalDate(value)) throw new Error(`${label}請使用 YYYY/MM/DD 格式。`);
+  if (!toCanonicalDate(value)) throw new Error(`請選擇${label}。`);
+}
+
+function updateEmployeeId() {
+  const name = form.elements.inspectorName.value;
+  form.elements.employeeId.value = EMPLOYEE_BY_NAME[name] || "";
 }
 
 function setStatus(message, type = "") {
@@ -360,6 +373,7 @@ async function handleSubmit(event) {
     form.reset();
     renderFields(checkFields);
     form.elements.inspectionDate.value = today();
+    updateEmployeeId();
     updateLocationOtherVisibility();
     setStatus("已完成填報。", "success");
     showSuccessDialog();
@@ -390,7 +404,7 @@ function exportRecords() {
   const html = `<!doctype html><html><head><meta charset="utf-8"></head><body><table>${tableRows}</table></body></html>`;
   const blob = new Blob(["\ufeff", html], { type: "application/vnd.ms-excel;charset=utf-8" });
   const url = URL.createObjectURL(blob);
-  const date = today().replaceAll("/", "");
+  const date = today().replaceAll("-", "");
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = `巡檢紀錄-${date}.xls`;
@@ -520,6 +534,7 @@ document.querySelector("#markAllNormal").addEventListener("click", () => markAll
 document.querySelector("#markAllNA").addEventListener("click", () => markAll("不適用"));
 document.querySelector("#closeDialog").addEventListener("click", () => detailDialog.close());
 document.querySelector("#closeSuccessDialog").addEventListener("click", () => successDialog.close());
+form.elements.inspectorName.addEventListener("change", updateEmployeeId);
 form.elements.locationPreset.addEventListener("change", updateLocationOtherVisibility);
 exportRecordsButton.addEventListener("click", exportRecords);
 clearQueryButton.addEventListener("click", () => {
@@ -544,6 +559,7 @@ resultBody.addEventListener("click", (event) => {
 
 renderFields(checkFields);
 form.elements.inspectionDate.value = today();
+updateEmployeeId();
 otherLocationField.hidden = true;
 updateLocationOtherVisibility();
 recordsCache = getStoredRecords();
