@@ -1,4 +1,4 @@
-const APP_VERSION = "OneDrive 送出版 v23";
+const APP_VERSION = "OneDrive 送出版 v25";
 const PAGE_LOAD_TIME = new Date();
 const QUERY_PASSWORD = "TPEIS";
 const QUERY_AUTH_KEY = "department-inspection-query-authorized";
@@ -53,9 +53,10 @@ const EMPLOYEE_BY_NAME = {
   房家儀: "630951",
   張春輝: "633653",
   詹子穗: "630628",
-  馬智仁: "643529",
+  馬智仁: "635529",
   張煒: "645788",
   許澤泉: "646425",
+  測試: "TPEIS",
 };
 const NAME_BY_EMPLOYEE = Object.fromEntries(Object.entries(EMPLOYEE_BY_NAME).map(([name, employeeId]) => [employeeId, name]));
 const STORAGE_KEYS = [
