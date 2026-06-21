@@ -189,6 +189,16 @@
       <div id="detailContent" class="detail-content"></div>
     </dialog>
 
+    <dialog id="photoDialog" class="photo-dialog" aria-labelledby="photoTitle">
+      <div class="dialog-head">
+        <h2 id="photoTitle">照片預覽</h2>
+        <button class="icon-button" id="closePhotoDialog" type="button" aria-label="關閉">×</button>
+      </div>
+      <div class="photo-viewer">
+        <img id="photoDialogImage" alt="">
+      </div>
+    </dialog>
+
     <dialog id="successDialog" class="success-dialog" aria-labelledby="successTitle">
       <div class="success-card">
         <div class="success-mark" aria-hidden="true">✓</div>
@@ -223,6 +233,6 @@
       </form>
     </dialog>
 
-    <script src="app.js?v=20260621-onedrive-27" type="module"></script>
+    <script src="app.js?v=20260621-onedrive-28" type="module"></script>
   </body>
 </html>

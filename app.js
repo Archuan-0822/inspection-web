@@ -1,4 +1,4 @@
-const APP_VERSION = "OneDrive 送出版 v27";
+const APP_VERSION = "OneDrive 送出版 v28";
 const PAGE_LOAD_TIME = new Date();
 const QUERY_PASSWORD = "TPEIS";
 const QUERY_AUTH_KEY = "department-inspection-query-authorized";
@@ -81,6 +81,8 @@ const clearQueryButton = document.querySelector("#clearQuery");
 const otherLocationField = document.querySelector("#otherLocationField");
 const detailDialog = document.querySelector("#detailDialog");
 const detailContent = document.querySelector("#detailContent");
+const photoDialog = document.querySelector("#photoDialog");
+const photoDialogImage = document.querySelector("#photoDialogImage");
 const successDialog = document.querySelector("#successDialog");
 const passwordDialog = document.querySelector("#passwordDialog");
 const passwordForm = document.querySelector("#passwordForm");
@@ -689,11 +691,12 @@ function renderPhoto(photo) {
   const name = escapeHtml(photo.name || "巡檢照片");
   const storedName = escapeHtml(photo.storedName || photo.name || "");
   if (photo.previewUrl) {
+    const previewUrl = escapeHtml(photo.previewUrl);
     return `
-      <a class="photo-preview" href="${escapeHtml(photo.previewUrl)}" target="_blank" rel="noopener">
-        <img src="${escapeHtml(photo.previewUrl)}" alt="${name}">
+      <button class="photo-preview" type="button" data-photo-src="${previewUrl}" data-photo-name="${name}">
+        <img src="${previewUrl}" alt="${name}">
         <span>${name}</span>
-      </a>
+      </button>
     `;
   }
 
@@ -767,6 +770,7 @@ checkGroups.addEventListener("click", (event) => {
 markAllNormalButton.addEventListener("click", () => setCheckMode("全部正常"));
 toggleAllChecksButton.addEventListener("click", toggleAllGroups);
 document.querySelector("#closeDialog").addEventListener("click", () => detailDialog.close());
+document.querySelector("#closePhotoDialog").addEventListener("click", () => photoDialog.close());
 document.querySelector("#closeSuccessDialog").addEventListener("click", () => successDialog.close());
 document.querySelector("#cancelPasswordDialog").addEventListener("click", () => passwordDialog.close());
 passwordForm.addEventListener("submit", (event) => {
@@ -825,6 +829,20 @@ resultBody.addEventListener("click", (event) => {
   if (!record) return;
   renderDetail(record);
   detailDialog.showModal();
+});
+
+detailContent.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-photo-src]");
+  if (!button) return;
+  photoDialogImage.src = button.dataset.photoSrc;
+  photoDialogImage.alt = button.dataset.photoName || "巡檢照片";
+  document.querySelector("#photoTitle").textContent = button.dataset.photoName || "照片預覽";
+  photoDialog.showModal();
+});
+
+photoDialog.addEventListener("close", () => {
+  photoDialogImage.removeAttribute("src");
+  photoDialogImage.alt = "";
 });
 
 renderFields(checkFields);

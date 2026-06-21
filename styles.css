@@ -493,6 +493,14 @@ dialog::backdrop {
   box-shadow: none;
 }
 
+.photo-dialog,
+.photo-dialog[open] {
+  width: min(1100px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  padding: 0;
+  overflow: hidden;
+}
+
 .password-card {
   display: grid;
   gap: 12px;
@@ -629,7 +637,6 @@ dialog::backdrop {
   line-height: 1.4;
 }
 
-.photos a,
 .photo-preview {
   display: grid;
   gap: 8px;
@@ -640,6 +647,14 @@ dialog::backdrop {
   color: var(--primary-dark);
   text-decoration: none;
   font-weight: 800;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.photo-preview:hover {
+  border-color: var(--brand);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
 }
 
 .photos span {
@@ -652,6 +667,23 @@ dialog::backdrop {
   width: 100%;
   aspect-ratio: 4 / 3;
   object-fit: cover;
+}
+
+.photo-viewer {
+  display: grid;
+  place-items: center;
+  max-height: calc(100vh - 116px);
+  padding: 16px;
+  background: #0f172a;
+}
+
+.photo-viewer img {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100vh - 148px);
+  object-fit: contain;
+  border-radius: 6px;
+  background: #ffffff;
 }
 
 @media (max-width: 900px) {
