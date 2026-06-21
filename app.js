@@ -1,9 +1,12 @@
-const APP_VERSION = "OneDrive 送出版 v13";
+const APP_VERSION = "OneDrive 送出版 v16";
 const PAGE_LOAD_TIME = new Date();
+const QUERY_PASSWORD = "TPEIS";
+const QUERY_AUTH_KEY = "department-inspection-query-authorized";
 
 const POWER_AUTOMATE_CONFIG = {
   enabled: true,
   submitEndpointUrl: "https://default8660009a103e42099ff744105f8112.c5.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/07ade87a20454b35af289262c215f185/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=fUNe20p34kXoGyyofm2JGkDdVbjYH_MTLNEHGLSRhwk",
+  historyEndpointUrl: "https://default8660009a103e42099ff744105f8112.c5.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/0338cc317cda4b9d9cda15eb2689e618/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=4zlYdqzT7v94d8bOgewMvAdW6aIE1LRpwGfsAGasp4U",
 };
 
 const checkFields = [
@@ -162,9 +165,22 @@ function dedupeRecords(records) {
 }
 
 function normalizeStoredRecord(record) {
+  const source = record.record && record.id ? {
+    id: record.id,
+    inspectorName: record.record.inspectorName,
+    employeeId: record.record.employeeId,
+    inspectionDate: record.record.inspectionDate,
+    location: record.record.location,
+    hasAbnormal: record.record.hasAbnormal,
+    abnormalDescription: record.record.abnormalDescription,
+    checks: record.record.checks,
+    photos: record.photos,
+    created: record.submittedAt,
+  } : record;
+
   return {
-    ...record,
-    photos: (record.photos || []).map((photo) => ({
+    ...source,
+    photos: (source.photos || []).map((photo) => ({
       name: photo.name || photo.storedName || "巡檢照片",
       storedName: photo.storedName || photo.name || "",
       url: "",
@@ -178,6 +194,44 @@ function getStoredRecords() {
     .map(normalizeStoredRecord);
   records.sort((a, b) => String(b.created || "").localeCompare(String(a.created || "")));
   localStorage.setItem(PRIMARY_STORAGE_KEY, JSON.stringify(records));
+  return records;
+}
+
+function parseHistoryRecord(item) {
+  if (!item) return null;
+  if (typeof item === "string") {
+    try {
+      return JSON.parse(item);
+    } catch {
+      return null;
+    }
+  }
+  if (item.$content) {
+    try {
+      return JSON.parse(atob(item.$content));
+    } catch {
+      return null;
+    }
+  }
+  return item;
+}
+
+async function fetchHistoryRecords() {
+  const response = await fetch(POWER_AUTOMATE_CONFIG.historyEndpointUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json; charset=utf-8" },
+    body: JSON.stringify({}),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`讀取 OneDrive 歷史資料失敗 (${response.status})：${text.slice(0, 160)}`);
+  }
+
+  const payload = await response.json();
+  const items = Array.isArray(payload.records) ? payload.records : [];
+  const records = dedupeRecords(items.map(parseHistoryRecord).filter(Boolean).map(normalizeStoredRecord));
+  records.sort((a, b) => String(b.created || "").localeCompare(String(a.created || "")));
   return records;
 }
 
@@ -247,6 +301,14 @@ function setCheckMode(mode) {
 }
 
 function switchView(viewId) {
+  if (viewId === "queryView" && sessionStorage.getItem(QUERY_AUTH_KEY) !== "yes") {
+    const password = window.prompt("請輸入查詢密碼");
+    if (password !== QUERY_PASSWORD) {
+      if (password !== null) window.alert("密碼錯誤，無法進入查詢紀錄。");
+      return;
+    }
+    sessionStorage.setItem(QUERY_AUTH_KEY, "yes");
+  }
   document.querySelectorAll(".view").forEach((view) => view.classList.toggle("active", view.id === viewId));
   document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === viewId));
   if (viewId === "queryView") loadAndRenderRecords();
@@ -488,11 +550,23 @@ function renderResults(records, options = {}) {
   }).join("");
 }
 
-function loadAndRenderRecords(showLoading = true) {
+async function loadAndRenderRecords(showLoading = true) {
   if (showLoading) {
     resultCount.textContent = "載入中...";
-    resultBody.innerHTML = `<tr><td colspan="7">正在讀取本瀏覽器送出的巡檢紀錄。</td></tr>`;
+    resultBody.innerHTML = `<tr><td colspan="7">正在讀取 OneDrive 歷史巡檢紀錄。</td></tr>`;
   }
+
+  try {
+    recordsCache = await fetchHistoryRecords();
+    renderResults(recordsCache, { latestOnly: true });
+    return;
+  } catch (error) {
+    console.warn(error);
+    if (showLoading) {
+      resultBody.innerHTML = `<tr><td colspan="7">OneDrive 歷史資料暫時讀取失敗，改顯示本瀏覽器送出的紀錄。</td></tr>`;
+    }
+  }
+
   recordsCache = getStoredRecords();
   renderResults(recordsCache, { latestOnly: true });
 }
@@ -554,7 +628,6 @@ document.querySelectorAll(".tab").forEach((tab) => {
 });
 
 document.querySelector("#markAllNormal").addEventListener("click", () => setCheckMode("全部正常"));
-document.querySelector("#markAllNA").addEventListener("click", () => setCheckMode("不適用"));
 document.querySelector("#showAbnormalChecks").addEventListener("click", () => setCheckMode("異常"));
 document.querySelector("#closeDialog").addEventListener("click", () => detailDialog.close());
 document.querySelector("#closeSuccessDialog").addEventListener("click", () => successDialog.close());
