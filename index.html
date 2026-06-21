@@ -37,7 +37,6 @@
                   <option value="馬智仁">馬智仁</option>
                   <option value="張煒">張煒</option>
                   <option value="許澤泉">許澤泉</option>
-                  <option value="測試">測試</option>
                 </select>
               </label>
               <label>
@@ -135,7 +134,6 @@
                 <option value="馬智仁">馬智仁</option>
                 <option value="張煒">張煒</option>
                 <option value="許澤泉">許澤泉</option>
-                <option value="測試">測試</option>
               </select>
             </label>
             <label>
@@ -217,7 +215,7 @@
       <form id="loginForm" class="password-card" method="dialog">
         <h2 id="loginTitle">登入紀錄</h2>
         <p>請輸入您的工號</p>
-        <input id="loginEmployeeInput" name="loginEmployeeId" type="password" autocomplete="off">
+        <input id="loginEmployeeInput" name="loginEmployeeId" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
         <p id="loginError" class="password-error" aria-live="polite"></p>
         <div class="password-actions">
           <button class="primary" type="submit">確定</button>
@@ -225,6 +223,6 @@
       </form>
     </dialog>
 
-    <script src="app.js?v=20260621-onedrive-25" type="module"></script>
+    <script src="app.js?v=20260621-onedrive-26" type="module"></script>
   </body>
 </html>

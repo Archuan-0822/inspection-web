@@ -1,4 +1,4 @@
-const APP_VERSION = "OneDrive 送出版 v25";
+const APP_VERSION = "OneDrive 送出版 v26";
 const PAGE_LOAD_TIME = new Date();
 const QUERY_PASSWORD = "TPEIS";
 const QUERY_AUTH_KEY = "department-inspection-query-authorized";
@@ -56,7 +56,6 @@ const EMPLOYEE_BY_NAME = {
   馬智仁: "635529",
   張煒: "645788",
   許澤泉: "646425",
-  測試: "TPEIS",
 };
 const NAME_BY_EMPLOYEE = Object.fromEntries(Object.entries(EMPLOYEE_BY_NAME).map(([name, employeeId]) => [employeeId, name]));
 const STORAGE_KEYS = [
@@ -749,9 +748,17 @@ passwordForm.addEventListener("submit", (event) => {
   switchView("queryView");
 });
 loginDialog.addEventListener("cancel", (event) => event.preventDefault());
+loginEmployeeInput.addEventListener("input", () => {
+  loginEmployeeInput.value = loginEmployeeInput.value.replace(/\D/g, "");
+});
 loginForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const employeeId = loginEmployeeInput.value.trim();
+  if (!/^\d+$/.test(employeeId)) {
+    loginError.textContent = "工號只能輸入數字。";
+    loginEmployeeInput.select();
+    return;
+  }
   if (!applyLoginEmployee(employeeId)) {
     loginError.textContent = "工號錯誤，請重新輸入。";
     loginEmployeeInput.select();
