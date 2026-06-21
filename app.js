@@ -1,4 +1,4 @@
-const APP_VERSION = "OneDrive 送出版 v22";
+const APP_VERSION = "OneDrive 送出版 v23";
 const PAGE_LOAD_TIME = new Date();
 const QUERY_PASSWORD = "TPEIS";
 const QUERY_AUTH_KEY = "department-inspection-query-authorized";
@@ -53,10 +53,11 @@ const EMPLOYEE_BY_NAME = {
   房家儀: "630951",
   張春輝: "633653",
   詹子穗: "630628",
-  馬智仁: "635529",
+  馬智仁: "643529",
   張煒: "645788",
   許澤泉: "646425",
 };
+const NAME_BY_EMPLOYEE = Object.fromEntries(Object.entries(EMPLOYEE_BY_NAME).map(([name, employeeId]) => [employeeId, name]));
 const STORAGE_KEYS = [
   "department-inspection-records-v3",
   "department-inspection-records-v2",
@@ -68,6 +69,7 @@ const form = document.querySelector("#inspectionForm");
 const queryForm = document.querySelector("#queryForm");
 const checkGroups = document.querySelector("#checkGroups");
 const checkSummary = document.querySelector("#checkSummary");
+const markAllNormalButton = document.querySelector("#markAllNormal");
 const toggleAllChecksButton = document.querySelector("#toggleAllChecks");
 const formStatus = document.querySelector("#formStatus");
 const connectionText = document.querySelector("#connectionText");
@@ -83,8 +85,13 @@ const passwordDialog = document.querySelector("#passwordDialog");
 const passwordForm = document.querySelector("#passwordForm");
 const passwordInput = document.querySelector("#queryPasswordInput");
 const passwordError = document.querySelector("#passwordError");
+const loginDialog = document.querySelector("#loginDialog");
+const loginForm = document.querySelector("#loginForm");
+const loginEmployeeInput = document.querySelector("#loginEmployeeInput");
+const loginError = document.querySelector("#loginError");
 
 let recordsCache = [];
+let loggedInEmployeeId = "";
 
 function today() {
   return formatInputDate(new Date());
@@ -319,8 +326,18 @@ function updateToggleAllChecksButton(expanded) {
   if (toggleAllChecksButton) toggleAllChecksButton.textContent = expanded ? "全收合" : "全展開";
 }
 
+function setNormalSummaryMode(enabled) {
+  checkGroups.hidden = enabled;
+  checkGroups.classList.toggle("hidden-field", enabled);
+  checkSummary.classList.toggle("normal-summary", enabled);
+  checkSummary.textContent = enabled ? "巡檢情況正常" : "目前只顯示大項，點選大項可展開小項。";
+  markAllNormalButton.textContent = enabled ? "顯示項目" : "全部正常";
+  if (enabled) updateToggleAllChecksButton(false);
+}
+
 function toggleAllGroups() {
   const shouldExpand = !areAllGroupsExpanded();
+  markAllNormalButton.textContent = "全部正常";
   checkGroups.hidden = false;
   checkGroups.classList.remove("hidden-field");
   setAllGroupsExpanded(shouldExpand);
@@ -332,19 +349,30 @@ function toggleAllGroups() {
 
 function setCheckMode(mode) {
   if (mode === "全部正常") {
+    if (checkGroups.hidden) {
+      setAllGroupsExpanded(false);
+      setNormalSummaryMode(false);
+      return;
+    }
     markAll("正常");
     setAllGroupsExpanded(false);
-    checkGroups.hidden = true;
-    checkGroups.classList.add("hidden-field");
-    checkSummary.classList.add("normal-summary");
-    checkSummary.textContent = "巡檢情況正常";
+    setNormalSummaryMode(true);
   } else {
     checkGroups.hidden = false;
     checkGroups.classList.remove("hidden-field");
     checkSummary.classList.remove("normal-summary");
+    markAllNormalButton.textContent = "全部正常";
     setAllGroupsExpanded(true);
     checkSummary.textContent = "請在下方逐項選擇正常、異常或不適用。";
   }
+}
+
+function applyLoginEmployee(employeeId) {
+  const name = NAME_BY_EMPLOYEE[employeeId];
+  if (!name) return false;
+  form.elements.inspectorName.value = name;
+  form.elements.employeeId.value = employeeId;
+  return true;
 }
 
 function setDefaultQueryDates() {
@@ -508,9 +536,11 @@ async function handleSubmit(event) {
     form.reset();
     renderFields(checkFields);
     form.elements.inspectionDate.value = today();
-    updateEmployeeId();
+    if (loggedInEmployeeId) applyLoginEmployee(loggedInEmployeeId);
+    else updateEmployeeId();
     updateLocationOtherVisibility();
-    setCheckMode("全部正常");
+    setAllGroupsExpanded(false);
+    setNormalSummaryMode(false);
     setStatus("已完成填報。", "success");
     showSuccessDialog();
     loadAndRenderRecords(false);
@@ -694,13 +724,14 @@ checkGroups.addEventListener("click", (event) => {
   body.classList.toggle("hidden-field", expanded);
   body.hidden = expanded;
   checkSummary.classList.remove("normal-summary");
+  markAllNormalButton.textContent = "全部正常";
   updateToggleAllChecksButton(areAllGroupsExpanded());
   checkSummary.textContent = areAllGroupsExpanded()
     ? "所有大項已展開，可逐項選擇正常、異常或不適用。"
     : "目前只顯示大項，點選大項可展開小項。";
 });
 
-document.querySelector("#markAllNormal").addEventListener("click", () => setCheckMode("全部正常"));
+markAllNormalButton.addEventListener("click", () => setCheckMode("全部正常"));
 toggleAllChecksButton.addEventListener("click", toggleAllGroups);
 document.querySelector("#closeDialog").addEventListener("click", () => detailDialog.close());
 document.querySelector("#closeSuccessDialog").addEventListener("click", () => successDialog.close());
@@ -715,6 +746,19 @@ passwordForm.addEventListener("submit", (event) => {
   sessionStorage.setItem(QUERY_AUTH_KEY, "yes");
   passwordDialog.close();
   switchView("queryView");
+});
+loginDialog.addEventListener("cancel", (event) => event.preventDefault());
+loginForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const employeeId = loginEmployeeInput.value.trim();
+  if (!applyLoginEmployee(employeeId)) {
+    loginError.textContent = "工號錯誤，請重新輸入。";
+    loginEmployeeInput.select();
+    return;
+  }
+  loggedInEmployeeId = employeeId;
+  loginError.textContent = "";
+  loginDialog.close();
 });
 form.elements.inspectorName.addEventListener("change", updateEmployeeId);
 queryForm.elements.inspectorName.addEventListener("change", updateQueryEmployeeId);
@@ -747,9 +791,12 @@ form.elements.inspectionDate.value = today();
 updateEmployeeId();
 setDefaultQueryDates();
 updateQueryEmployeeId();
-setCheckMode("全部正常");
+setAllGroupsExpanded(false);
+setNormalSummaryMode(false);
 otherLocationField.hidden = true;
 updateLocationOtherVisibility();
 recordsCache = getStoredRecords();
 connectionText.textContent = `Power Automate 模式：送出資料將由流程存入 OneDrive｜${APP_VERSION}｜頁面載入 ${formatDateTime(PAGE_LOAD_TIME)}`;
 loadAndRenderRecords(false);
+loginDialog.showModal();
+loginEmployeeInput.focus();

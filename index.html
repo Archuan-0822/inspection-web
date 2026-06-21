@@ -72,7 +72,7 @@
                 <button class="secondary" id="toggleAllChecks" type="button">全展開</button>
               </div>
             </div>
-            <p id="checkSummary" class="hint">目前預設為全部正常。若有異常，請點選「異常」展開逐項檢查。</p>
+            <p id="checkSummary" class="hint">目前只顯示大項，點選大項可展開小項。</p>
             <div id="checkGroups" class="check-groups" aria-live="polite"></div>
           </section>
 
@@ -211,6 +211,18 @@
       </form>
     </dialog>
 
-    <script src="app.js?v=20260621-onedrive-22" type="module"></script>
+    <dialog id="loginDialog" class="password-dialog" aria-labelledby="loginTitle">
+      <form id="loginForm" class="password-card" method="dialog">
+        <h2 id="loginTitle">登入紀錄</h2>
+        <p>請輸入您的工號</p>
+        <input id="loginEmployeeInput" name="loginEmployeeId" type="password" inputmode="numeric" autocomplete="off">
+        <p id="loginError" class="password-error" aria-live="polite"></p>
+        <div class="password-actions">
+          <button class="primary" type="submit">確定</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="app.js?v=20260621-onedrive-23" type="module"></script>
   </body>
 </html>
