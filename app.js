@@ -1,4 +1,4 @@
-const APP_VERSION = "OneDrive 送出版 v30";
+const APP_VERSION = "OneDrive 送出版 v31";
 const PAGE_LOAD_TIME = new Date();
 const QUERY_PASSWORD = "TPEIS";
 const QUERY_AUTH_KEY = "department-inspection-query-authorized";
@@ -267,6 +267,14 @@ function parseHistoryRecord(item) {
   return item;
 }
 
+function extractHistoryItems(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.records)) return payload.records;
+  if (Array.isArray(payload?.value)) return payload.value;
+  if (payload?.records && typeof payload.records === "object") return [payload.records];
+  return [];
+}
+
 async function fetchHistoryRecords() {
   const response = await fetch(POWER_AUTOMATE_CONFIG.historyEndpointUrl, {
     method: "POST",
@@ -280,7 +288,7 @@ async function fetchHistoryRecords() {
   }
 
   const payload = await response.json();
-  const items = Array.isArray(payload.records) ? payload.records : [];
+  const items = extractHistoryItems(payload);
   const records = dedupeRecords(items.map(parseHistoryRecord).filter(Boolean).map(normalizeStoredRecord));
   records.sort((a, b) => String(b.created || "").localeCompare(String(a.created || "")));
   return records;
@@ -414,8 +422,8 @@ function applyLoginEmployee(employeeId) {
 }
 
 function setDefaultQueryDates() {
-  queryForm.elements.dateFrom.value = today();
-  queryForm.elements.dateTo.value = today();
+  queryForm.elements.dateFrom.value = "";
+  queryForm.elements.dateTo.value = "";
 }
 
 function switchView(viewId) {
@@ -428,7 +436,7 @@ function switchView(viewId) {
   }
   document.querySelectorAll(".view").forEach((view) => view.classList.toggle("active", view.id === viewId));
   document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === viewId));
-  if (viewId === "queryView") loadAndRenderRecords();
+  if (viewId === "queryView") loadAndRenderRecords({ showLoading: true, latestOnly: true });
 }
 
 function updateLocationOtherVisibility() {
@@ -582,7 +590,7 @@ async function handleSubmit(event) {
     setNormalSummaryMode(false);
     setStatus("已完成填報。", "success");
     showSuccessDialog();
-    loadAndRenderRecords(false);
+    loadAndRenderRecords({ showLoading: false, latestOnly: true });
   } catch (error) {
     setStatus(error.message || "送出失敗，請稍後再試。", "error");
   }
@@ -670,7 +678,8 @@ function renderResults(records, options = {}) {
   }).join("");
 }
 
-async function loadAndRenderRecords(showLoading = true) {
+async function loadAndRenderRecords(options = {}) {
+  const { showLoading = true, latestOnly = true } = options;
   if (showLoading) {
     resultCount.textContent = "載入中...";
     resultBody.innerHTML = `<tr><td colspan="7">正在讀取 OneDrive 歷史巡檢紀錄。</td></tr>`;
@@ -678,17 +687,22 @@ async function loadAndRenderRecords(showLoading = true) {
 
   try {
     recordsCache = await fetchHistoryRecords();
-    renderResults(recordsCache, { latestOnly: true });
-    return;
+    renderResults(recordsCache, { latestOnly });
+    return true;
   } catch (error) {
     console.warn(error);
-    if (showLoading) {
-      resultBody.innerHTML = `<tr><td colspan="7">OneDrive 歷史資料暫時讀取失敗，改顯示本瀏覽器送出的紀錄。</td></tr>`;
-    }
+    recordsCache = [];
+    resultCount.textContent = "雲端讀取失敗";
+    resultBody.innerHTML = `
+      <tr>
+        <td colspan="7">
+          無法讀取 OneDrive 歷史巡檢紀錄。請確認 Power Automate「讀取巡檢紀錄」流程已儲存、可執行，且回應標頭有 Access-Control-Allow-Origin: *。<br>
+          錯誤：${escapeHtml(error.message || "未知錯誤")}
+        </td>
+      </tr>
+    `;
+    return false;
   }
-
-  recordsCache = getStoredRecords();
-  renderResults(recordsCache, { latestOnly: true });
 }
 
 function getPhotoPreviewUrl(photo) {
@@ -826,13 +840,13 @@ clearQueryButton.addEventListener("click", () => {
   queryForm.reset();
   setDefaultQueryDates();
   updateQueryEmployeeId();
-  renderResults(recordsCache, { latestOnly: true });
+  loadAndRenderRecords({ showLoading: true, latestOnly: true });
 });
 
 form.addEventListener("submit", handleSubmit);
-queryForm.addEventListener("submit", (event) => {
+queryForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  renderResults(recordsCache);
+  await loadAndRenderRecords({ showLoading: true, latestOnly: false });
 });
 
 resultBody.addEventListener("click", (event) => {
@@ -867,8 +881,6 @@ setAllGroupsExpanded(false);
 setNormalSummaryMode(false);
 otherLocationField.hidden = true;
 updateLocationOtherVisibility();
-recordsCache = getStoredRecords();
 connectionText.textContent = `Power Automate 模式：送出資料將由流程存入 OneDrive｜${APP_VERSION}｜頁面載入 ${formatDateTime(PAGE_LOAD_TIME)}`;
-loadAndRenderRecords(false);
 loginDialog.showModal();
 loginEmployeeInput.focus();
