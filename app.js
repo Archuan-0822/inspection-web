@@ -1,4 +1,4 @@
-const APP_VERSION = "OneDrive 送出版 v18";
+const APP_VERSION = "OneDrive 送出版 v19";
 const PAGE_LOAD_TIME = new Date();
 const QUERY_PASSWORD = "TPEIS";
 const QUERY_AUTH_KEY = "department-inspection-query-authorized";
@@ -599,6 +599,22 @@ function renderPhoto(photo) {
 
 function renderDetail(record) {
   const photos = record.photos || [];
+  const abnormalChecks = (record.checks || []).filter((item) => item.value === "異常");
+  const abnormalSection = abnormalChecks.length ? `
+    <h3 class="detail-title">異常巡檢項目</h3>
+    <div class="detail-list">
+      ${abnormalChecks.map((item) => `
+        <div class="detail-row">
+          <div>
+            <strong>${escapeHtml(item.category)}</strong>
+            <span>${escapeHtml(item.label)}</span>
+          </div>
+          <span class="badge bad">異常</span>
+        </div>
+      `).join("")}
+    </div>
+  ` : "";
+
   detailContent.innerHTML = `
     <div class="detail-grid">
       <div class="detail-box"><strong>紀錄編號</strong>${escapeHtml(record.id)}</div>
@@ -609,18 +625,7 @@ function renderDetail(record) {
       <div class="detail-box"><strong>送出時間</strong>${escapeHtml(formatDateTime(new Date(record.created)))}</div>
     </div>
     <div class="detail-box wide"><strong>異常情況描述或其它辦理情形</strong>${escapeHtml(record.abnormalDescription || "無")}</div>
-    <h3 class="detail-title">巡檢項目</h3>
-    <div class="detail-list">
-      ${(record.checks || []).map((item) => `
-        <div class="detail-row">
-          <div>
-            <strong>${escapeHtml(item.category)}</strong>
-            <span>${escapeHtml(item.label)}</span>
-          </div>
-          <span class="badge ${item.value === "異常" ? "bad" : "ok"}">${escapeHtml(item.value)}</span>
-        </div>
-      `).join("")}
-    </div>
+    ${abnormalSection}
     <h3 class="detail-title">照片</h3>
     <div class="photos">
       ${photos.length ? photos.map(renderPhoto).join("") : "<p>沒有照片。</p>"}
