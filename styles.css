@@ -277,11 +277,6 @@ textarea {
   color: var(--danger);
 }
 
-.segmented input[value="不適用"]:checked + span {
-  background: var(--na-soft);
-  color: #344054;
-}
-
 .file-drop {
   margin-top: 14px;
   padding: 14px;

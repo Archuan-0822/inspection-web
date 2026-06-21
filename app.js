@@ -1,4 +1,4 @@
-const APP_VERSION = "OneDrive 送出版 v16";
+const APP_VERSION = "OneDrive 送出版 v17";
 const PAGE_LOAD_TIME = new Date();
 const QUERY_PASSWORD = "TPEIS";
 const QUERY_AUTH_KEY = "department-inspection-query-authorized";
@@ -47,7 +47,7 @@ const checkFields = [
   label,
 }));
 
-const CHECK_OPTIONS = ["正常", "異常", "不適用"];
+const CHECK_OPTIONS = ["正常", "異常"];
 const FIXED_LOCATIONS = ["華航園區", "1航廈", "2航廈"];
 const EMPLOYEE_BY_NAME = {
   房家儀: "630951",
@@ -264,7 +264,7 @@ function renderFields(fields) {
         <div class="segmented" role="radiogroup" aria-label="${escapeHtml(item.label)}">
           ${CHECK_OPTIONS.map((option, index) => `
             <label>
-              <input type="radio" name="${escapeHtml(item.key)}" value="${option}" ${option === "不適用" ? "checked" : ""}>
+              <input type="radio" name="${escapeHtml(item.key)}" value="${option}" ${option === "正常" ? "checked" : ""}>
               <span>${option}</span>
             </label>
           `).join("")}
@@ -292,12 +292,14 @@ function setCheckMode(mode) {
   if (mode === "全部正常") {
     markAll("正常");
     checkSummary.textContent = "目前已設為全部正常。若需逐項標示異常，請點選「異常」。";
-  } else if (mode === "不適用") {
-    markAll("不適用");
-    checkSummary.textContent = "目前預設為不適用。若有異常，請點選「異常」展開逐項檢查。";
   } else {
-    checkSummary.textContent = "請在下方逐項選擇正常、異常或不適用。";
+    checkSummary.textContent = "請在下方逐項選擇正常或異常。";
   }
+}
+
+function setDefaultQueryDates() {
+  queryForm.elements.dateFrom.value = "";
+  queryForm.elements.dateTo.value = today();
 }
 
 function switchView(viewId) {
@@ -459,7 +461,7 @@ async function handleSubmit(event) {
     form.elements.inspectionDate.value = today();
     updateEmployeeId();
     updateLocationOtherVisibility();
-    setCheckMode("不適用");
+    setCheckMode("全部正常");
     setStatus("已完成填報。", "success");
     showSuccessDialog();
     loadAndRenderRecords(false);
@@ -637,6 +639,7 @@ form.elements.locationPreset.addEventListener("change", updateLocationOtherVisib
 exportRecordsButton.addEventListener("click", exportRecords);
 clearQueryButton.addEventListener("click", () => {
   queryForm.reset();
+  setDefaultQueryDates();
   updateQueryEmployeeId();
   renderResults(recordsCache, { latestOnly: true });
 });
@@ -659,8 +662,9 @@ resultBody.addEventListener("click", (event) => {
 renderFields(checkFields);
 form.elements.inspectionDate.value = today();
 updateEmployeeId();
+setDefaultQueryDates();
 updateQueryEmployeeId();
-setCheckMode("不適用");
+setCheckMode("全部正常");
 otherLocationField.hidden = true;
 updateLocationOtherVisibility();
 recordsCache = getStoredRecords();
