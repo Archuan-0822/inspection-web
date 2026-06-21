@@ -1,4 +1,4 @@
-const APP_VERSION = "OneDrive 送出版 v29";
+const APP_VERSION = "OneDrive 送出版 v30";
 const PAGE_LOAD_TIME = new Date();
 const QUERY_PASSWORD = "TPEIS";
 const QUERY_AUTH_KEY = "department-inspection-query-authorized";
@@ -198,6 +198,8 @@ function normalizeStoredRecord(record) {
     photos: (source.photos || []).map((photo) => ({
       name: photo.name || photo.storedName || "巡檢照片",
       storedName: photo.storedName || photo.name || "",
+      type: photo.type || "",
+      contentBase64: photo.contentBase64 || "",
       url: "",
       previewUrl: String(photo.previewUrl || "").startsWith("data:image/") ? photo.previewUrl : "",
     })),
@@ -211,6 +213,7 @@ function stripRecordForStorage(record) {
       name: photo.name || photo.storedName || "巡檢照片",
       storedName: photo.storedName || photo.name || "",
       type: photo.type || "",
+      contentBase64: "",
       url: "",
       previewUrl: "",
     })),
@@ -688,25 +691,34 @@ async function loadAndRenderRecords(showLoading = true) {
   renderResults(recordsCache, { latestOnly: true });
 }
 
-function renderPhoto(photo) {
+function getPhotoPreviewUrl(photo) {
+  if (String(photo.previewUrl || "").startsWith("data:image/")) return photo.previewUrl;
+  if (photo.contentBase64 && String(photo.type || "").startsWith("image/")) {
+    return `data:${photo.type};base64,${photo.contentBase64}`;
+  }
+  return "";
+}
+
+function renderPhoto(photo, index) {
+  const label = `pic${String(index + 1).padStart(2, "0")}`;
   const name = escapeHtml(photo.name || "巡檢照片");
   const storedName = escapeHtml(photo.storedName || photo.name || "");
-  if (photo.previewUrl) {
-    const previewUrl = escapeHtml(photo.previewUrl);
+  const previewUrl = getPhotoPreviewUrl(photo);
+  if (previewUrl) {
     return `
-      <button class="photo-preview" type="button" data-photo-src="${previewUrl}" data-photo-name="${name}">
-        <img src="${previewUrl}" alt="${name}">
+      <button class="photo-button" type="button" data-photo-src="${escapeHtml(previewUrl)}" data-photo-name="${name}">
+        <strong>${label}</strong>
         <span>${name}</span>
       </button>
     `;
   }
 
   return `
-    <div class="photo-file">
-      <strong>${name}</strong>
-      <span>照片已存至 OneDrive / 巡檢網頁 / photos / ${storedName}</span>
-      <small>這筆舊資料沒有保留可直接預覽的照片內容。</small>
-    </div>
+    <button class="photo-button unavailable" type="button" disabled title="照片已存至 OneDrive / 巡檢網頁 / photos / ${storedName}">
+      <strong>${label}</strong>
+      <span>${name}</span>
+      <small>無預覽資料</small>
+    </button>
   `;
 }
 
