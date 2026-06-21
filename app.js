@@ -1,4 +1,4 @@
-const APP_VERSION = "OneDrive 送出版 v20";
+const APP_VERSION = "OneDrive 送出版 v21";
 const PAGE_LOAD_TIME = new Date();
 const QUERY_PASSWORD = "TPEIS";
 const QUERY_AUTH_KEY = "department-inspection-query-authorized";
@@ -68,6 +68,7 @@ const form = document.querySelector("#inspectionForm");
 const queryForm = document.querySelector("#queryForm");
 const checkGroups = document.querySelector("#checkGroups");
 const checkSummary = document.querySelector("#checkSummary");
+const toggleAllChecksButton = document.querySelector("#toggleAllChecks");
 const formStatus = document.querySelector("#formStatus");
 const connectionText = document.querySelector("#connectionText");
 const resultBody = document.querySelector("#resultBody");
@@ -255,10 +256,10 @@ function groupByCategory(fields) {
 
 function renderFields(fields) {
   checkGroups.innerHTML = "";
-  for (const [category, items] of groupByCategory(fields)) {
+  Array.from(groupByCategory(fields).entries()).forEach(([category, items], groupIndex) => {
     const group = document.createElement("section");
     group.className = "check-group";
-    const bodyId = `group-${category.replace(/\W/g, "")}`;
+    const bodyId = `check-group-${groupIndex}`;
     group.innerHTML = `
       <button class="check-group-toggle" type="button" aria-expanded="false" aria-controls="${escapeHtml(bodyId)}">
         <span>${escapeHtml(category)}</span>
@@ -286,7 +287,7 @@ function renderFields(fields) {
     }
 
     checkGroups.append(group);
-  }
+  });
 }
 
 function markAll(value) {
@@ -306,17 +307,34 @@ function setAllGroupsExpanded(expanded) {
     body.classList.toggle("hidden-field", !expanded);
     body.hidden = !expanded;
   });
+  updateToggleAllChecksButton(expanded);
+}
+
+function areAllGroupsExpanded() {
+  const buttons = Array.from(checkGroups.querySelectorAll(".check-group-toggle"));
+  return buttons.length > 0 && buttons.every((button) => button.getAttribute("aria-expanded") === "true");
+}
+
+function updateToggleAllChecksButton(expanded) {
+  if (toggleAllChecksButton) toggleAllChecksButton.textContent = expanded ? "全收合" : "全展開";
+}
+
+function toggleAllGroups() {
+  const shouldExpand = !areAllGroupsExpanded();
+  setAllGroupsExpanded(shouldExpand);
+  checkSummary.textContent = shouldExpand
+    ? "所有大項已展開，可逐項選擇正常、異常或不適用。"
+    : "目前只顯示大項，點選大項可展開小項。";
 }
 
 function setCheckMode(mode) {
-  const isDetailMode = mode === "異常";
-  checkGroups.hidden = !isDetailMode;
-  checkGroups.classList.toggle("hidden-field", !isDetailMode);
+  checkGroups.hidden = false;
+  checkGroups.classList.remove("hidden-field");
 
   if (mode === "全部正常") {
     markAll("正常");
     setAllGroupsExpanded(false);
-    checkSummary.textContent = "目前已設為全部正常。若需逐項標示異常，請點選「異常」。";
+    checkSummary.textContent = "目前已設為全部正常。點「全展開」或大項可檢視小項。";
   } else {
     setAllGroupsExpanded(true);
     checkSummary.textContent = "請在下方逐項選擇正常、異常或不適用。";
@@ -486,7 +504,7 @@ async function handleSubmit(event) {
     form.elements.inspectionDate.value = today();
     updateEmployeeId();
     updateLocationOtherVisibility();
-    setCheckMode("異常");
+    setCheckMode("全部正常");
     setStatus("已完成填報。", "success");
     showSuccessDialog();
     loadAndRenderRecords(false);
@@ -669,10 +687,14 @@ checkGroups.addEventListener("click", (event) => {
   button.querySelector("span:last-child").textContent = expanded ? "＋" : "−";
   body.classList.toggle("hidden-field", expanded);
   body.hidden = expanded;
+  updateToggleAllChecksButton(areAllGroupsExpanded());
+  checkSummary.textContent = areAllGroupsExpanded()
+    ? "所有大項已展開，可逐項選擇正常、異常或不適用。"
+    : "目前只顯示大項，點選大項可展開小項。";
 });
 
 document.querySelector("#markAllNormal").addEventListener("click", () => setCheckMode("全部正常"));
-document.querySelector("#showAbnormalChecks").addEventListener("click", () => setCheckMode("異常"));
+toggleAllChecksButton.addEventListener("click", toggleAllGroups);
 document.querySelector("#closeDialog").addEventListener("click", () => detailDialog.close());
 document.querySelector("#closeSuccessDialog").addEventListener("click", () => successDialog.close());
 document.querySelector("#cancelPasswordDialog").addEventListener("click", () => passwordDialog.close());
@@ -718,7 +740,7 @@ form.elements.inspectionDate.value = today();
 updateEmployeeId();
 setDefaultQueryDates();
 updateQueryEmployeeId();
-setCheckMode("異常");
+setCheckMode("全部正常");
 otherLocationField.hidden = true;
 updateLocationOtherVisibility();
 recordsCache = getStoredRecords();
