@@ -1,4 +1,4 @@
-const APP_VERSION = "OneDrive 送出版 v21";
+const APP_VERSION = "OneDrive 送出版 v22";
 const PAGE_LOAD_TIME = new Date();
 const QUERY_PASSWORD = "TPEIS";
 const QUERY_AUTH_KEY = "department-inspection-query-authorized";
@@ -321,21 +321,27 @@ function updateToggleAllChecksButton(expanded) {
 
 function toggleAllGroups() {
   const shouldExpand = !areAllGroupsExpanded();
+  checkGroups.hidden = false;
+  checkGroups.classList.remove("hidden-field");
   setAllGroupsExpanded(shouldExpand);
+  checkSummary.classList.remove("normal-summary");
   checkSummary.textContent = shouldExpand
     ? "所有大項已展開，可逐項選擇正常、異常或不適用。"
     : "目前只顯示大項，點選大項可展開小項。";
 }
 
 function setCheckMode(mode) {
-  checkGroups.hidden = false;
-  checkGroups.classList.remove("hidden-field");
-
   if (mode === "全部正常") {
     markAll("正常");
     setAllGroupsExpanded(false);
-    checkSummary.textContent = "目前已設為全部正常。點「全展開」或大項可檢視小項。";
+    checkGroups.hidden = true;
+    checkGroups.classList.add("hidden-field");
+    checkSummary.classList.add("normal-summary");
+    checkSummary.textContent = "巡檢情況正常";
   } else {
+    checkGroups.hidden = false;
+    checkGroups.classList.remove("hidden-field");
+    checkSummary.classList.remove("normal-summary");
     setAllGroupsExpanded(true);
     checkSummary.textContent = "請在下方逐項選擇正常、異常或不適用。";
   }
@@ -687,6 +693,7 @@ checkGroups.addEventListener("click", (event) => {
   button.querySelector("span:last-child").textContent = expanded ? "＋" : "−";
   body.classList.toggle("hidden-field", expanded);
   body.hidden = expanded;
+  checkSummary.classList.remove("normal-summary");
   updateToggleAllChecksButton(areAllGroupsExpanded());
   checkSummary.textContent = areAllGroupsExpanded()
     ? "所有大項已展開，可逐項選擇正常、異常或不適用。"
