@@ -68,10 +68,12 @@
             <div class="section-title">
               <h2>巡檢項目</h2>
               <div class="toolbar">
+                <button class="secondary" id="markAllNA" type="button">不適用</button>
                 <button class="secondary" id="markAllNormal" type="button">全部正常</button>
-                <button class="secondary" id="markAllNA" type="button">全部不適用</button>
+                <button class="secondary" id="showAbnormalChecks" type="button">異常</button>
               </div>
             </div>
+            <p id="checkSummary" class="hint">目前預設為不適用。若有異常，請點選「異常」展開逐項檢查。</p>
             <div id="checkGroups" class="check-groups" aria-live="polite"></div>
           </section>
 
@@ -102,7 +104,7 @@
         <section class="panel">
           <div class="section-title">
             <h2>查詢條件</h2>
-            <span class="hint">目前查詢此瀏覽器已送出的紀錄；OneDrive 中央查詢需另接讀取流程</span>
+            <span class="hint">目前查詢此瀏覽器已送出的紀錄；OneDrive 既有歷史資料需另接讀取流程</span>
           </div>
           <form id="queryForm" class="query-grid">
             <label>
@@ -137,7 +139,7 @@
             </label>
             <label>
               <span>員工編號</span>
-              <input name="employeeId">
+              <input name="employeeId" readonly>
             </label>
             <label>
               <span>異常狀態</span>
@@ -197,6 +199,6 @@
       </div>
     </dialog>
 
-    <script src="app.js?v=20260621-onedrive-12" type="module"></script>
+    <script src="app.js?v=20260621-onedrive-13" type="module"></script>
   </body>
 </html>

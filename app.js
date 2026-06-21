@@ -1,4 +1,4 @@
-const APP_VERSION = "OneDrive 送出版 v12";
+const APP_VERSION = "OneDrive 送出版 v13";
 const PAGE_LOAD_TIME = new Date();
 
 const POWER_AUTOMATE_CONFIG = {
@@ -64,6 +64,7 @@ const PRIMARY_STORAGE_KEY = STORAGE_KEYS[0];
 const form = document.querySelector("#inspectionForm");
 const queryForm = document.querySelector("#queryForm");
 const checkGroups = document.querySelector("#checkGroups");
+const checkSummary = document.querySelector("#checkSummary");
 const formStatus = document.querySelector("#formStatus");
 const connectionText = document.querySelector("#connectionText");
 const resultBody = document.querySelector("#resultBody");
@@ -129,6 +130,11 @@ function assertDateValue(value, label) {
 function updateEmployeeId() {
   const name = form.elements.inspectorName.value;
   form.elements.employeeId.value = EMPLOYEE_BY_NAME[name] || "";
+}
+
+function updateQueryEmployeeId() {
+  const name = queryForm.elements.inspectorName.value;
+  queryForm.elements.employeeId.value = EMPLOYEE_BY_NAME[name] || "";
 }
 
 function setStatus(message, type = "") {
@@ -204,7 +210,7 @@ function renderFields(fields) {
         <div class="segmented" role="radiogroup" aria-label="${escapeHtml(item.label)}">
           ${CHECK_OPTIONS.map((option, index) => `
             <label>
-              <input type="radio" name="${escapeHtml(item.key)}" value="${option}" ${index === 0 ? "checked" : ""}>
+              <input type="radio" name="${escapeHtml(item.key)}" value="${option}" ${option === "不適用" ? "checked" : ""}>
               <span>${option}</span>
             </label>
           `).join("")}
@@ -221,6 +227,22 @@ function markAll(value) {
   for (const field of checkFields) {
     const input = form.querySelector(`input[name="${CSS.escape(field.key)}"][value="${value}"]`);
     if (input) input.checked = true;
+  }
+}
+
+function setCheckMode(mode) {
+  const isDetailMode = mode === "異常";
+  checkGroups.hidden = !isDetailMode;
+  checkGroups.classList.toggle("hidden-field", !isDetailMode);
+
+  if (mode === "全部正常") {
+    markAll("正常");
+    checkSummary.textContent = "目前已設為全部正常。若需逐項標示異常，請點選「異常」。";
+  } else if (mode === "不適用") {
+    markAll("不適用");
+    checkSummary.textContent = "目前預設為不適用。若有異常，請點選「異常」展開逐項檢查。";
+  } else {
+    checkSummary.textContent = "請在下方逐項選擇正常、異常或不適用。";
   }
 }
 
@@ -375,6 +397,7 @@ async function handleSubmit(event) {
     form.elements.inspectionDate.value = today();
     updateEmployeeId();
     updateLocationOtherVisibility();
+    setCheckMode("不適用");
     setStatus("已完成填報。", "success");
     showSuccessDialog();
     loadAndRenderRecords(false);
@@ -530,15 +553,18 @@ document.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => switchView(tab.dataset.view));
 });
 
-document.querySelector("#markAllNormal").addEventListener("click", () => markAll("正常"));
-document.querySelector("#markAllNA").addEventListener("click", () => markAll("不適用"));
+document.querySelector("#markAllNormal").addEventListener("click", () => setCheckMode("全部正常"));
+document.querySelector("#markAllNA").addEventListener("click", () => setCheckMode("不適用"));
+document.querySelector("#showAbnormalChecks").addEventListener("click", () => setCheckMode("異常"));
 document.querySelector("#closeDialog").addEventListener("click", () => detailDialog.close());
 document.querySelector("#closeSuccessDialog").addEventListener("click", () => successDialog.close());
 form.elements.inspectorName.addEventListener("change", updateEmployeeId);
+queryForm.elements.inspectorName.addEventListener("change", updateQueryEmployeeId);
 form.elements.locationPreset.addEventListener("change", updateLocationOtherVisibility);
 exportRecordsButton.addEventListener("click", exportRecords);
 clearQueryButton.addEventListener("click", () => {
   queryForm.reset();
+  updateQueryEmployeeId();
   renderResults(recordsCache, { latestOnly: true });
 });
 
@@ -560,6 +586,8 @@ resultBody.addEventListener("click", (event) => {
 renderFields(checkFields);
 form.elements.inspectionDate.value = today();
 updateEmployeeId();
+updateQueryEmployeeId();
+setCheckMode("不適用");
 otherLocationField.hidden = true;
 updateLocationOtherVisibility();
 recordsCache = getStoredRecords();
