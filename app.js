@@ -1,4 +1,4 @@
-const APP_VERSION = "OneDrive 送出版 v28";
+const APP_VERSION = "OneDrive 送出版 v29";
 const PAGE_LOAD_TIME = new Date();
 const QUERY_PASSWORD = "TPEIS";
 const QUERY_AUTH_KEY = "department-inspection-query-authorized";
@@ -241,7 +241,8 @@ function getStoredRecords() {
   const records = dedupeRecords(STORAGE_KEYS.flatMap((key) => readRecordsFromKey(key)))
     .map(normalizeStoredRecord);
   records.sort((a, b) => String(b.created || "").localeCompare(String(a.created || "")));
-  return persistStoredRecords(records);
+  persistStoredRecords(records);
+  return records.map(stripRecordForStorage);
 }
 
 function parseHistoryRecord(item) {
@@ -283,8 +284,8 @@ async function fetchHistoryRecords() {
 }
 
 function saveStoredRecord(record) {
-  const records = dedupeRecords([stripRecordForStorage(record), ...getStoredRecords()]);
-  recordsCache = persistStoredRecords(records);
+  recordsCache = dedupeRecords([record, ...recordsCache]);
+  persistStoredRecords(recordsCache);
 }
 
 function groupByCategory(fields) {
@@ -548,7 +549,7 @@ function toLocalRecord(remotePayload) {
       storedName: photoNames[index],
       type: photo.type || "",
       url: "",
-      previewUrl: "",
+      previewUrl: photo.type.startsWith("image/") ? `data:${photo.type};base64,${photo.contentBase64}` : "",
     })),
     created: remotePayload.submittedAt,
   };
