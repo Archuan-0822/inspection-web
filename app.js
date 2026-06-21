@@ -1,4 +1,4 @@
-const APP_VERSION = "OneDrive 送出版 v31";
+const APP_VERSION = "OneDrive 送出版 v32";
 const PAGE_LOAD_TIME = new Date();
 const QUERY_PASSWORD = "TPEIS";
 const QUERY_AUTH_KEY = "department-inspection-query-authorized";
@@ -275,11 +275,24 @@ function extractHistoryItems(payload) {
   return [];
 }
 
-async function fetchHistoryRecords() {
+function getHistoryQueryPayload() {
+  const data = new FormData(queryForm);
+  return {
+    dateFrom: normalizeDate(data.get("dateFrom")),
+    dateTo: normalizeDate(data.get("dateTo")),
+    location: String(data.get("location") || "").trim(),
+    inspectorName: String(data.get("inspectorName") || "").trim(),
+    employeeId: String(data.get("employeeId") || "").trim(),
+    abnormal: String(data.get("abnormal") || "").trim(),
+    includePhotos: false,
+  };
+}
+
+async function fetchHistoryRecords(queryPayload = {}) {
   const response = await fetch(POWER_AUTOMATE_CONFIG.historyEndpointUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json; charset=utf-8" },
-    body: JSON.stringify({}),
+    body: JSON.stringify(queryPayload),
   });
 
   if (!response.ok) {
@@ -436,7 +449,7 @@ function switchView(viewId) {
   }
   document.querySelectorAll(".view").forEach((view) => view.classList.toggle("active", view.id === viewId));
   document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === viewId));
-  if (viewId === "queryView") loadAndRenderRecords({ showLoading: true, latestOnly: true });
+  if (viewId === "queryView") renderQueryIdle();
 }
 
 function updateLocationOtherVisibility() {
@@ -590,7 +603,6 @@ async function handleSubmit(event) {
     setNormalSummaryMode(false);
     setStatus("已完成填報。", "success");
     showSuccessDialog();
-    loadAndRenderRecords({ showLoading: false, latestOnly: true });
   } catch (error) {
     setStatus(error.message || "送出失敗，請稍後再試。", "error");
   }
@@ -678,15 +690,21 @@ function renderResults(records, options = {}) {
   }).join("");
 }
 
+function renderQueryIdle() {
+  resultCount.textContent = "尚未查詢";
+  resultBody.innerHTML = `<tr><td colspan="7">請設定查詢條件後按「查詢」。</td></tr>`;
+}
+
 async function loadAndRenderRecords(options = {}) {
-  const { showLoading = true, latestOnly = true } = options;
+  const { showLoading = true, latestOnly = false } = options;
+  const queryPayload = getHistoryQueryPayload();
   if (showLoading) {
     resultCount.textContent = "載入中...";
-    resultBody.innerHTML = `<tr><td colspan="7">正在讀取 OneDrive 歷史巡檢紀錄。</td></tr>`;
+    resultBody.innerHTML = `<tr><td colspan="7">正在依查詢條件讀取 OneDrive 歷史巡檢紀錄。</td></tr>`;
   }
 
   try {
-    recordsCache = await fetchHistoryRecords();
+    recordsCache = await fetchHistoryRecords(queryPayload);
     renderResults(recordsCache, { latestOnly });
     return true;
   } catch (error) {
@@ -840,7 +858,8 @@ clearQueryButton.addEventListener("click", () => {
   queryForm.reset();
   setDefaultQueryDates();
   updateQueryEmployeeId();
-  loadAndRenderRecords({ showLoading: true, latestOnly: true });
+  recordsCache = [];
+  renderQueryIdle();
 });
 
 form.addEventListener("submit", handleSubmit);
