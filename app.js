@@ -1,4 +1,4 @@
-const APP_VERSION = "OneDrive 送出版 v26";
+const APP_VERSION = "OneDrive 送出版 v27";
 const PAGE_LOAD_TIME = new Date();
 const QUERY_PASSWORD = "TPEIS";
 const QUERY_AUTH_KEY = "department-inspection-query-authorized";
@@ -64,6 +64,7 @@ const STORAGE_KEYS = [
   "department-inspection-records-v1",
 ];
 const PRIMARY_STORAGE_KEY = STORAGE_KEYS[0];
+const LOCAL_RECORD_LIMIT = 30;
 
 const form = document.querySelector("#inspectionForm");
 const queryForm = document.querySelector("#queryForm");
@@ -201,12 +202,44 @@ function normalizeStoredRecord(record) {
   };
 }
 
+function stripRecordForStorage(record) {
+  return {
+    ...record,
+    photos: (record.photos || []).map((photo) => ({
+      name: photo.name || photo.storedName || "巡檢照片",
+      storedName: photo.storedName || photo.name || "",
+      type: photo.type || "",
+      url: "",
+      previewUrl: "",
+    })),
+  };
+}
+
+function persistStoredRecords(records) {
+  const slimRecords = dedupeRecords(records)
+    .map(stripRecordForStorage)
+    .slice(0, LOCAL_RECORD_LIMIT);
+
+  try {
+    localStorage.setItem(PRIMARY_STORAGE_KEY, JSON.stringify(slimRecords));
+  } catch (error) {
+    console.warn("Local storage is full; clearing cached inspection records.", error);
+    for (const key of STORAGE_KEYS) localStorage.removeItem(key);
+    try {
+      localStorage.setItem(PRIMARY_STORAGE_KEY, JSON.stringify(slimRecords.slice(0, 5)));
+    } catch (retryError) {
+      console.warn("Unable to save local inspection cache.", retryError);
+    }
+  }
+
+  return slimRecords;
+}
+
 function getStoredRecords() {
   const records = dedupeRecords(STORAGE_KEYS.flatMap((key) => readRecordsFromKey(key)))
     .map(normalizeStoredRecord);
   records.sort((a, b) => String(b.created || "").localeCompare(String(a.created || "")));
-  localStorage.setItem(PRIMARY_STORAGE_KEY, JSON.stringify(records));
-  return records;
+  return persistStoredRecords(records);
 }
 
 function parseHistoryRecord(item) {
@@ -248,9 +281,8 @@ async function fetchHistoryRecords() {
 }
 
 function saveStoredRecord(record) {
-  const records = dedupeRecords([record, ...getStoredRecords()]);
-  localStorage.setItem(PRIMARY_STORAGE_KEY, JSON.stringify(records));
-  recordsCache = records;
+  const records = dedupeRecords([stripRecordForStorage(record), ...getStoredRecords()]);
+  recordsCache = persistStoredRecords(records);
 }
 
 function groupByCategory(fields) {
@@ -512,8 +544,9 @@ function toLocalRecord(remotePayload) {
     photos: remotePayload.photos.map((photo, index) => ({
       name: photo.name,
       storedName: photoNames[index],
+      type: photo.type || "",
       url: "",
-      previewUrl: photo.type.startsWith("image/") ? `data:${photo.type};base64,${photo.contentBase64}` : "",
+      previewUrl: "",
     })),
     created: remotePayload.submittedAt,
   };
