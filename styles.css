@@ -207,11 +207,27 @@ textarea {
   overflow: hidden;
 }
 
-.check-group h3 {
+.check-group-toggle {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 10px 14px;
+  border-radius: 0;
   background: #edf4f2;
   color: #123a36;
   font-size: 16px;
+  font-weight: 900;
+  text-align: left;
+}
+
+.check-group-toggle:hover {
+  background: #dfece9;
+}
+
+.check-group-body {
+  display: grid;
 }
 
 .check-item {

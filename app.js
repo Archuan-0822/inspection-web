@@ -1,4 +1,4 @@
-const APP_VERSION = "OneDrive 送出版 v19";
+const APP_VERSION = "OneDrive 送出版 v20";
 const PAGE_LOAD_TIME = new Date();
 const QUERY_PASSWORD = "TPEIS";
 const QUERY_AUTH_KEY = "department-inspection-query-authorized";
@@ -258,7 +258,15 @@ function renderFields(fields) {
   for (const [category, items] of groupByCategory(fields)) {
     const group = document.createElement("section");
     group.className = "check-group";
-    group.innerHTML = `<h3>${escapeHtml(category)}</h3>`;
+    const bodyId = `group-${category.replace(/\W/g, "")}`;
+    group.innerHTML = `
+      <button class="check-group-toggle" type="button" aria-expanded="false" aria-controls="${escapeHtml(bodyId)}">
+        <span>${escapeHtml(category)}</span>
+        <span aria-hidden="true">＋</span>
+      </button>
+      <div class="check-group-body hidden-field" id="${escapeHtml(bodyId)}"></div>
+    `;
+    const body = group.querySelector(".check-group-body");
 
     for (const item of items) {
       const row = document.createElement("div");
@@ -274,7 +282,7 @@ function renderFields(fields) {
           `).join("")}
         </div>
       `;
-      group.append(row);
+      body.append(row);
     }
 
     checkGroups.append(group);
@@ -288,6 +296,18 @@ function markAll(value) {
   }
 }
 
+function setAllGroupsExpanded(expanded) {
+  checkGroups.querySelectorAll(".check-group").forEach((group) => {
+    const button = group.querySelector(".check-group-toggle");
+    const body = group.querySelector(".check-group-body");
+    if (!button || !body) return;
+    button.setAttribute("aria-expanded", String(expanded));
+    button.querySelector("span:last-child").textContent = expanded ? "−" : "＋";
+    body.classList.toggle("hidden-field", !expanded);
+    body.hidden = !expanded;
+  });
+}
+
 function setCheckMode(mode) {
   const isDetailMode = mode === "異常";
   checkGroups.hidden = !isDetailMode;
@@ -295,14 +315,16 @@ function setCheckMode(mode) {
 
   if (mode === "全部正常") {
     markAll("正常");
+    setAllGroupsExpanded(false);
     checkSummary.textContent = "目前已設為全部正常。若需逐項標示異常，請點選「異常」。";
   } else {
+    setAllGroupsExpanded(true);
     checkSummary.textContent = "請在下方逐項選擇正常、異常或不適用。";
   }
 }
 
 function setDefaultQueryDates() {
-  queryForm.elements.dateFrom.value = "";
+  queryForm.elements.dateFrom.value = today();
   queryForm.elements.dateTo.value = today();
 }
 
@@ -635,6 +657,18 @@ function renderDetail(record) {
 
 document.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => switchView(tab.dataset.view));
+});
+
+checkGroups.addEventListener("click", (event) => {
+  const button = event.target.closest(".check-group-toggle");
+  if (!button) return;
+  const body = document.getElementById(button.getAttribute("aria-controls"));
+  if (!body) return;
+  const expanded = button.getAttribute("aria-expanded") === "true";
+  button.setAttribute("aria-expanded", String(!expanded));
+  button.querySelector("span:last-child").textContent = expanded ? "＋" : "−";
+  body.classList.toggle("hidden-field", expanded);
+  body.hidden = expanded;
 });
 
 document.querySelector("#markAllNormal").addEventListener("click", () => setCheckMode("全部正常"));
