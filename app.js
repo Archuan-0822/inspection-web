@@ -1,4 +1,4 @@
-const APP_VERSION = "OneDrive 送出版 v17";
+const APP_VERSION = "OneDrive 送出版 v18";
 const PAGE_LOAD_TIME = new Date();
 const QUERY_PASSWORD = "TPEIS";
 const QUERY_AUTH_KEY = "department-inspection-query-authorized";
@@ -47,7 +47,7 @@ const checkFields = [
   label,
 }));
 
-const CHECK_OPTIONS = ["正常", "異常"];
+const CHECK_OPTIONS = ["正常", "異常", "不適用"];
 const FIXED_LOCATIONS = ["華航園區", "1航廈", "2航廈"];
 const EMPLOYEE_BY_NAME = {
   房家儀: "630951",
@@ -78,6 +78,10 @@ const otherLocationField = document.querySelector("#otherLocationField");
 const detailDialog = document.querySelector("#detailDialog");
 const detailContent = document.querySelector("#detailContent");
 const successDialog = document.querySelector("#successDialog");
+const passwordDialog = document.querySelector("#passwordDialog");
+const passwordForm = document.querySelector("#passwordForm");
+const passwordInput = document.querySelector("#queryPasswordInput");
+const passwordError = document.querySelector("#passwordError");
 
 let recordsCache = [];
 
@@ -293,7 +297,7 @@ function setCheckMode(mode) {
     markAll("正常");
     checkSummary.textContent = "目前已設為全部正常。若需逐項標示異常，請點選「異常」。";
   } else {
-    checkSummary.textContent = "請在下方逐項選擇正常或異常。";
+    checkSummary.textContent = "請在下方逐項選擇正常、異常或不適用。";
   }
 }
 
@@ -304,12 +308,11 @@ function setDefaultQueryDates() {
 
 function switchView(viewId) {
   if (viewId === "queryView" && sessionStorage.getItem(QUERY_AUTH_KEY) !== "yes") {
-    const password = window.prompt("請輸入查詢密碼");
-    if (password !== QUERY_PASSWORD) {
-      if (password !== null) window.alert("密碼錯誤，無法進入查詢紀錄。");
-      return;
-    }
-    sessionStorage.setItem(QUERY_AUTH_KEY, "yes");
+    passwordInput.value = "";
+    passwordError.textContent = "";
+    passwordDialog.showModal();
+    passwordInput.focus();
+    return;
   }
   document.querySelectorAll(".view").forEach((view) => view.classList.toggle("active", view.id === viewId));
   document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === viewId));
@@ -461,7 +464,7 @@ async function handleSubmit(event) {
     form.elements.inspectionDate.value = today();
     updateEmployeeId();
     updateLocationOtherVisibility();
-    setCheckMode("全部正常");
+    setCheckMode("異常");
     setStatus("已完成填報。", "success");
     showSuccessDialog();
     loadAndRenderRecords(false);
@@ -633,6 +636,18 @@ document.querySelector("#markAllNormal").addEventListener("click", () => setChec
 document.querySelector("#showAbnormalChecks").addEventListener("click", () => setCheckMode("異常"));
 document.querySelector("#closeDialog").addEventListener("click", () => detailDialog.close());
 document.querySelector("#closeSuccessDialog").addEventListener("click", () => successDialog.close());
+document.querySelector("#cancelPasswordDialog").addEventListener("click", () => passwordDialog.close());
+passwordForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (passwordInput.value !== QUERY_PASSWORD) {
+    passwordError.textContent = "密碼錯誤，請重新輸入。";
+    passwordInput.select();
+    return;
+  }
+  sessionStorage.setItem(QUERY_AUTH_KEY, "yes");
+  passwordDialog.close();
+  switchView("queryView");
+});
 form.elements.inspectorName.addEventListener("change", updateEmployeeId);
 queryForm.elements.inspectorName.addEventListener("change", updateQueryEmployeeId);
 form.elements.locationPreset.addEventListener("change", updateLocationOtherVisibility);
@@ -664,7 +679,7 @@ form.elements.inspectionDate.value = today();
 updateEmployeeId();
 setDefaultQueryDates();
 updateQueryEmployeeId();
-setCheckMode("全部正常");
+setCheckMode("異常");
 otherLocationField.hidden = true;
 updateLocationOtherVisibility();
 recordsCache = getStoredRecords();

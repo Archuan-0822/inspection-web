@@ -198,6 +198,19 @@
       </div>
     </dialog>
 
-    <script src="app.js?v=20260621-onedrive-17" type="module"></script>
+    <dialog id="passwordDialog" class="password-dialog" aria-labelledby="passwordTitle">
+      <form id="passwordForm" class="password-card" method="dialog">
+        <h2 id="passwordTitle">查詢紀錄</h2>
+        <p>請輸入查詢密碼</p>
+        <input id="queryPasswordInput" name="queryPassword" type="password" autocomplete="off">
+        <p id="passwordError" class="password-error" aria-live="polite"></p>
+        <div class="password-actions">
+          <button class="secondary" id="cancelPasswordDialog" type="button">取消</button>
+          <button class="primary" type="submit">確定</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="app.js?v=20260621-onedrive-18" type="module"></script>
   </body>
 </html>
